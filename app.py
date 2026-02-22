@@ -1,8 +1,12 @@
+import os
+import random
 import streamlit as st
 from datasets import load_dataset
-import random
 
-# ── Page config ──────────────────────────────────────────────────────────────
+# ── Kill the HF_TOKEN env var before datasets library sees it ─────────────────
+os.environ.pop("HF_TOKEN", None)
+
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Humanity's Last Exam",
     page_icon="🧠",
@@ -24,7 +28,6 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
 
 .stApp { background-color: #0a0a0f; }
 
-/* Header */
 .hle-header {
     text-align: center;
     padding: 2.5rem 0 1.5rem;
@@ -47,14 +50,12 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
     margin-top: 0.5rem;
 }
 
-/* Question card */
 .q-card {
     background: #13131f;
     border: 1px solid #2a2a3a;
     border-radius: 12px;
     padding: 2rem;
     margin-bottom: 1.5rem;
-    position: relative;
 }
 .q-card:hover { border-color: #c8a96e; transition: border-color 0.2s; }
 
@@ -111,13 +112,11 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
     margin-bottom: 0.4rem;
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background: #0d0d18 !important;
     border-right: 1px solid #2a2a3a;
 }
 
-/* Buttons */
 .stButton > button {
     background: #1e1e2e !important;
     color: #c8a96e !important;
@@ -147,8 +146,15 @@ div[data-testid="stMetric"] {
     border-radius: 10px;
     padding: 1rem;
 }
-div[data-testid="stMetric"] label { color: #888 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
-div[data-testid="stMetric"] div { color: #c8a96e !important; font-family: 'Playfair Display', serif !important; }
+div[data-testid="stMetric"] label {
+    color: #888 !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.7rem !important;
+}
+div[data-testid="stMetric"] div {
+    color: #c8a96e !important;
+    font-family: 'Playfair Display', serif !important;
+}
 
 hr { border-color: #2a2a3a !important; }
 </style>
@@ -162,7 +168,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Auth / Load ───────────────────────────────────────────────────────────────
+# ── Load dataset ──────────────────────────────────────────────────────────────
 hf_token = st.secrets["HUGGINGFACE_TOKEN"]
 
 @st.cache_resource(show_spinner="Loading dataset from Hugging Face...")
@@ -171,7 +177,7 @@ def load_hle(token):
 
 dataset = load_hle(hf_token)
 
-# ── Sidebar filters ───────────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🔍 Filters")
 
@@ -189,14 +195,14 @@ with st.sidebar:
         st.session_state.random_idx = random.randint(0, len(dataset) - 1)
         st.session_state.page = 0
 
-# ── Filter dataset ────────────────────────────────────────────────────────────
+# ── Filter ────────────────────────────────────────────────────────────────────
 filtered = [
     (i, ex) for i, ex in enumerate(dataset)
     if (subject_filter == "All" or (ex.get("subject") or "Unknown") == subject_filter)
     and (type_filter == "All" or (ex.get("answer_type") or "Unknown") == type_filter)
 ]
 
-# ── Stats ─────────────────────────────────────────────────────────────────────
+# ── Metrics ───────────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("Total Questions", f"{len(dataset):,}")
@@ -229,7 +235,7 @@ st.session_state.page = min(st.session_state.page, total_pages - 1)
 page_start = st.session_state.page * PER_PAGE
 page_items = filtered[page_start: page_start + PER_PAGE]
 
-# ── Render questions ──────────────────────────────────────────────────────────
+# ── Render ────────────────────────────────────────────────────────────────────
 if not filtered:
     st.info("No questions match your filters.")
 else:
@@ -266,7 +272,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Pagination controls ───────────────────────────────────────────────────
     st.markdown("---")
     col_prev, col_info, col_next = st.columns([1, 2, 1])
     with col_prev:
