@@ -1,6 +1,5 @@
 import streamlit as st
 from datasets import load_dataset
-from huggingface_hub import login
 import random
 
 # ── Page config ──────────────────────────────────────────────────────────────
@@ -112,21 +111,6 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
     margin-bottom: 0.4rem;
 }
 
-/* Stats bar */
-.stats-bar {
-    display: flex;
-    gap: 2rem;
-    background: #13131f;
-    border: 1px solid #2a2a3a;
-    border-radius: 10px;
-    padding: 1rem 1.5rem;
-    margin-bottom: 1.5rem;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.8rem;
-    color: #888;
-}
-.stat-item span { color: #c8a96e; font-size: 1.1rem; font-weight: 500; }
-
 /* Sidebar */
 section[data-testid="stSidebar"] {
     background: #0d0d18 !important;
@@ -149,7 +133,6 @@ section[data-testid="stSidebar"] {
     color: #0a0a0f !important;
 }
 
-/* Selectbox / input */
 .stSelectbox label, .stTextInput label, .stNumberInput label, .stSlider label {
     font-family: 'DM Mono', monospace !important;
     font-size: 0.75rem !important;
@@ -180,12 +163,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Auth / Load ───────────────────────────────────────────────────────────────
-hf_token = st.secrets["HF_TOKEN"]
+hf_token = st.secrets["HUGGINGFACE_TOKEN"]
 
 @st.cache_resource(show_spinner="Loading dataset from Hugging Face...")
 def load_hle(token):
-    login(token=token)
-    return load_dataset("cais/hle", split="test")
+    return load_dataset("cais/hle", split="test", token=token)
 
 dataset = load_hle(hf_token)
 
@@ -234,7 +216,6 @@ PER_PAGE = 10
 if "page" not in st.session_state:
     st.session_state.page = 0
 
-# Handle random jump
 if "random_idx" in st.session_state:
     for pos, (orig_i, _) in enumerate(filtered):
         if orig_i == st.session_state.random_idx:
