@@ -1,3 +1,2 @@
 streamlit
 datasets
-huggingface_hub
