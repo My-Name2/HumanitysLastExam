@@ -185,13 +185,9 @@ def load_hle(token):
     login(token=token)
     return load_dataset("cais/hle", split="test")
 
-with st.sidebar:
-    st.markdown("### 🔑 Authentication")
-    hf_token = st.text_input("Hugging Face Token", type="password", placeholder="hf_...")
+hf_token = st.secrets["HF_TOKEN"]
 
-    if not hf_token:
-        st.warning("Enter your HF token to load the dataset.")
-        st.stop()
+with st.sidebar:
 
     dataset = load_hle(hf_token)
 
