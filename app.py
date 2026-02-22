@@ -3,8 +3,8 @@ import random
 import streamlit as st
 from datasets import load_dataset
 
-# ── Kill the HF_TOKEN env var before datasets library sees it ─────────────────
-os.environ.pop("HF_TOKEN", None)
+hf_token = st.secrets["HUGGINGFACE_TOKEN"]
+os.environ["HF_TOKEN"] = hf_token  # overwrite whatever Streamlit injected
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
