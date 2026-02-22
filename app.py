@@ -1,11 +1,12 @@
 import os
 import random
 import streamlit as st
-from datasets import load_dataset
 
-# Overwrite whatever HF_TOKEN Streamlit Cloud injected
+# Must set env var BEFORE importing datasets
 hf_token = st.secrets["HUGGINGFACE_TOKEN"]
 os.environ["HF_TOKEN"] = hf_token
+
+from datasets import load_dataset
 
 st.set_page_config(
     page_title="Humanity's Last Exam",
