@@ -180,18 +180,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Auth / Load ───────────────────────────────────────────────────────────────
+hf_token = st.secrets["HF_TOKEN"]
+
 @st.cache_resource(show_spinner="Loading dataset from Hugging Face...")
 def load_hle(token):
     login(token=token)
     return load_dataset("cais/hle", split="test")
 
-hf_token = st.secrets["HF_TOKEN"]
+dataset = load_hle(hf_token)
 
+# ── Sidebar filters ───────────────────────────────────────────────────────────
 with st.sidebar:
-
-    dataset = load_hle(hf_token)
-
-    st.markdown("---")
     st.markdown("### 🔍 Filters")
 
     subjects = sorted(set(ex.get("subject", "Unknown") or "Unknown" for ex in dataset))
@@ -237,7 +236,6 @@ if "page" not in st.session_state:
 
 # Handle random jump
 if "random_idx" in st.session_state:
-    # Find this index in filtered
     for pos, (orig_i, _) in enumerate(filtered):
         if orig_i == st.session_state.random_idx:
             st.session_state.page = pos // PER_PAGE
