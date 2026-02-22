@@ -1,10 +1,9 @@
 import os
 import random
-import streamlit as st
 
-# Must set env var BEFORE importing datasets
-hf_token = st.secrets["HUGGINGFACE_TOKEN"]
-os.environ["HF_TOKEN"] = hf_token
+# Set token before anything else loads
+import streamlit as st
+os.environ["HF_TOKEN"] = st.secrets["HF_TOKEN"]
 
 from datasets import load_dataset
 
@@ -167,11 +166,11 @@ st.markdown("""
 
 
 @st.cache_resource(show_spinner="Loading dataset from Hugging Face...")
-def load_hle(token):
-    return load_dataset("cais/hle", split="test", token=token)
+def load_hle():
+    return load_dataset("cais/hle", split="test")
 
 
-dataset = load_hle(hf_token)
+dataset = load_hle()
 
 with st.sidebar:
     st.markdown("### 🔍 Filters")
