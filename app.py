@@ -117,25 +117,25 @@ def render_question(ex, orig_i):
             choices_html += f'<div class="choice">{c_html}</div>'
         choices_html += '</div>'
 
-    html = f"""<!DOCTYPE html><html><head>
-    {MATHJAX}
-    {CARD_STYLE}
-    </head><body>
-    <div class="q-card">
-        <div class="q-meta">
-            <span class="q-number">Question #{orig_i + 1}</span>
-            <span class="q-subject">{subject}</span>
-            <span class="q-type">{answer_type}</span>
-        </div>
-        {image_html}
-        <div class="q-body">{body}</div>
-        {choices_html}
-        <div class="spoiler" onclick="this.classList.toggle('revealed')">
-            <span class="spoiler-label">👁 Reveal Answer</span>
-            <span class="spoiler-answer">{answer}</span>
-        </div>
-    </div>
-    </body></html>"""
+    html = (
+        "<!DOCTYPE html><html><head>"
+        + MATHJAX
+        + CARD_STYLE
+        + "</head><body>"
+        + '<div class="q-card">'
+        + '<div class="q-meta">'
+        + f'<span class="q-number">Question #{orig_i + 1}</span>'
+        + f'<span class="q-subject">{subject}</span>'
+        + f'<span class="q-type">{answer_type}</span>'
+        + "</div>"
+        + image_html
+        + f'<div class="q-body">{body}</div>'
+        + choices_html
+        + '<div class="spoiler" onclick="this.classList.toggle(\'revealed\')">'
+        + '<span class="spoiler-label">👁 Reveal Answer</span>'
+        + f'<span class="spoiler-answer">{answer}</span>'
+        + "</div></div></body></html>"
+    )
 
     # Height: base + body length + per choice
     height = 160 + min(len(body) // 5, 400) + len(choices) * 56
