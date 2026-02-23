@@ -36,10 +36,10 @@ def split_question_and_choices(ex):
     body = format_q_text(q[:match.start()].strip())
     choices_raw = q[match.end():].strip()
 
-    # Split on A. B. C. D. E. using position-based approach
-    positions = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<=\s))([A-E])\. ', choices_raw)]
+    # Match any single uppercase letter followed by ". " at word boundary
+    # e.g. A. B. C. ... Z. — handles questions with more than 5 choices
+    positions = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<=\s))([A-Z])\. ', choices_raw)]
     if not positions:
-        # Can't parse, just show as text
         choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
         return body, choices_html
 
