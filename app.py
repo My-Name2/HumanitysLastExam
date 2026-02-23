@@ -27,6 +27,27 @@ def get_image_html(ex):
     return ""
 
 
+def split_choices(raw):
+    """Split a choices string like 'A. foo B. bar C. baz' into [('A','foo'),('B','bar'),('C','baz')]."""
+    first = re.match(r'^([A-Z])\. ', raw)
+    if not first:
+        return [('', raw)]
+    results = []
+    current_label = first.group(1)
+    current_start = 3  # skip "A. "
+    while True:
+        next_label = chr(ord(current_label) + 1)
+        m = re.search(r' ' + next_label + r'\. ', raw[current_start:])
+        if m:
+            results.append((current_label, raw[current_start:current_start + m.start()].strip()))
+            current_label = next_label
+            current_start = current_start + m.start() + len(next_label) + 3
+        else:
+            results.append((current_label, raw[current_start:].strip()))
+            break
+    return results
+
+
 def parse_choices_and_body(ex):
     q = ex.get("question", "")
     match = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
@@ -48,31 +69,7 @@ def parse_choices_and_body(ex):
     if not choices_raw:
         return body, []
 
-    # Find sequential letter labels A. B. C. D. ...
-    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. ', choices_raw)]
-
-    if not candidates:
-        return body, [('', choices_raw)]
-
-    def is_seq(a, b):
-        return ord(b) == ord(a) + 1
-
-    positions = [candidates[0]]
-    for cand in candidates[1:]:
-        if is_seq(positions[-1][1], cand[1]):
-            positions.append(cand)
-
-    if len(positions) < 2:
-        return body, [('', choices_raw)]
-
-    choices = []
-    for i, (pos, label) in enumerate(positions):
-        start = pos + 3
-        end = positions[i + 1][0] if i + 1 < len(positions) else len(choices_raw)
-        text = choices_raw[start:end].strip()
-        choices.append((label, text))
-
-    return body, choices
+    return body, split_choices(choices_raw)
 
 
 def render_question(ex, orig_i):
