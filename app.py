@@ -43,20 +43,27 @@ def split_choices(raw):
 def parse_question(ex):
     q = ex.get("question", "")
 
-    # Try "Answer Choices:" header first
+    # 1. Check dedicated answer_choices field
+    ac_field = ex.get("answer_choices") or ""
+
+    # 2. Try "Answer Choices:" header in question text
     m = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
-    if m:
+
+    # 3. Try detecting choices embedded after sentence-ending punctuation
+    m2 = re.search(r'(?<=[.?!])\s+(A\.)', q) if not m else None
+
+    if ac_field:
+        choices_raw = ac_field
+        body = q.strip()
+    elif m:
         body = q[:m.start()].strip()
         choices_raw = q[m.end():].strip()
+    elif m2:
+        body = q[:m2.start()].strip()
+        choices_raw = q[m2.start():].strip()
     else:
-        # Try detecting choices embedded after sentence-ending punctuation: "...? A. foo B. bar"
-        m2 = re.search(r'(?<=[.?!])\s+(A\.)', q)
-        if m2:
-            body = q[:m2.start()].strip()
-            choices_raw = q[m2.start():].strip()
-        else:
-            body = q.strip()
-            choices_raw = ""
+        body = q.strip()
+        choices_raw = ""
 
     body = re.sub(
         r'```(.*?)```',
@@ -68,7 +75,6 @@ def parse_question(ex):
         body, flags=re.DOTALL
     )
     choices = split_choices(choices_raw) if choices_raw else []
-    # Discard if only 1 "choice" — probably a false positive
     if len(choices) < 2:
         choices = []
     img = ex.get("image", "")
@@ -153,8 +159,9 @@ def render_question(ex, orig_i):
     )
 
     body_chars = len(re.sub(r'<[^>]+>', '', body))
-    height = 220 + min(body_chars // 4, 1000) + len(choices) * 52
-    components.html(html, height=height, scrolling=False)
+    n_choices = len(choices) if choices else (1 if atype == 'multipleChoice' else 0)
+    height = 160 + min(body_chars // 5, 800) + n_choices * 52
+    components.html(html, height=height, scrolling=True)
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -210,7 +217,7 @@ if "sample" not in st.session_state or st.session_state.get("sample_type") != ty
 
 for orig_i in st.session_state.sample:
     render_question(dataset[orig_i], orig_i)
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 if st.button("🎲 New Sample", use_container_width=True):
