@@ -1,3 +1,4 @@
+import re
 import random
 import streamlit as st
 import streamlit.components.v1 as components
@@ -14,6 +15,30 @@ def get_question_indices(_dataset):
     mc = [i for i, ex in enumerate(_dataset) if ex.get("answer_type") == "multipleChoice"]
     em = [i for i, ex in enumerate(_dataset) if ex.get("answer_type") == "exactMatch"]
     return mc, em, len(mc)
+
+
+def parse_choices(ex):
+    """Get answer choices from answer_choices field or extract from question text."""
+    choices = ex.get("answer_choices") or []
+    if choices:
+        return choices
+
+    # Try to extract "Answer Choices: A. ... B. ... C. ..." from question text
+    q = ex.get("question", "")
+    match = re.search(r'Answer Choices:\s*(.*?)$', q, re.IGNORECASE | re.DOTALL)
+    if match:
+        raw = match.group(1).strip()
+        # Split on patterns like "A." "B." etc.
+        parts = re.split(r'\s+(?=[A-E]\.)', raw)
+        choices = [p.strip() for p in parts if p.strip()]
+    return choices
+
+
+def clean_question_text(ex):
+    """Remove embedded 'Answer Choices: ...' from question text if present."""
+    q = ex.get("question", "")
+    cleaned = re.sub(r'\s*Answer Choices:.*$', '', q, flags=re.IGNORECASE | re.DOTALL).strip()
+    return cleaned
 
 
 token = st.secrets["HF_TOKEN"]
@@ -40,89 +65,25 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
     border-bottom: 2px solid #e0dbd0;
     margin-bottom: 2rem;
 }
-.hle-header h1 {
-    font-size: 3rem;
-    font-weight: 900;
-    letter-spacing: -1px;
-    color: #1a1a1a;
-    margin: 0;
-}
-.hle-header .subtitle {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.75rem;
-    color: #999;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    margin-top: 0.5rem;
-}
+.hle-header h1 { font-size: 3rem; font-weight: 900; letter-spacing: -1px; color: #1a1a1a; margin: 0; }
+.hle-header .subtitle { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #999; letter-spacing: 3px; text-transform: uppercase; margin-top: 0.5rem; }
 
-section[data-testid="stSidebar"] {
-    background: #eeeae2 !important;
-    border-right: 1px solid #e0dbd0;
-}
+section[data-testid="stSidebar"] { background: #eeeae2 !important; border-right: 1px solid #e0dbd0; }
 
-.stButton > button {
-    background: #fff !important;
-    color: #8a6a2a !important;
-    border: 1px solid #c8a96e !important;
-    border-radius: 8px !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.8rem !important;
-    letter-spacing: 1px !important;
-}
-.stButton > button:hover {
-    background: #c8a96e !important;
-    color: #fff !important;
-}
+.stButton > button { background: #fff !important; color: #8a6a2a !important; border: 1px solid #c8a96e !important; border-radius: 8px !important; font-family: 'DM Mono', monospace !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }
+.stButton > button:hover { background: #c8a96e !important; color: #fff !important; }
 
-.stSelectbox label, .stRadio label, .stTextInput label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.75rem !important;
-    color: #666 !important;
-    letter-spacing: 1px !important;
-    text-transform: uppercase !important;
-}
+.stSelectbox label, .stRadio label, .stTextInput label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #666 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
 
-div[data-testid="stMetric"] {
-    background: #fff;
-    border: 1px solid #e0dbd0;
-    border-radius: 10px;
-    padding: 1rem;
-}
-div[data-testid="stMetric"] label {
-    color: #999 !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.7rem !important;
-}
-div[data-testid="stMetric"] div {
-    color: #8a6a2a !important;
-    font-family: 'Playfair Display', serif !important;
-}
+div[data-testid="stMetric"] { background: #fff; border: 1px solid #e0dbd0; border-radius: 10px; padding: 1rem; }
+div[data-testid="stMetric"] label { color: #999 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
+div[data-testid="stMetric"] div { color: #8a6a2a !important; font-family: 'Playfair Display', serif !important; }
 
 hr { border-color: #e0dbd0 !important; }
 
-.score-box {
-    background: #fff;
-    border: 1px solid #e0dbd0;
-    border-radius: 12px;
-    padding: 1.5rem 2rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-}
-.score-num {
-    font-family: 'Playfair Display', serif;
-    font-size: 2.5rem;
-    color: #8a6a2a;
-}
-.score-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    color: #999;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
+.score-box { background: #fff; border: 1px solid #e0dbd0; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 2rem; }
+.score-num { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: #8a6a2a; }
+.score-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #999; letter-spacing: 2px; text-transform: uppercase; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -138,8 +99,7 @@ with st.sidebar:
     mode = st.radio("", ["Browse", "Multiple Choice Quiz", "Exact Match Quiz"], label_visibility="collapsed")
 
     if mode == "Browse":
-        answer_types = ["All", "multipleChoice", "exactMatch"]
-        type_filter = st.selectbox("Answer Type", answer_types)
+        type_filter = st.selectbox("Answer Type", ["All", "multipleChoice", "exactMatch"])
         show_answers = st.toggle("Show Answers", value=False)
         st.markdown("---")
         if st.button("🎲 Random Page"):
@@ -148,7 +108,7 @@ with st.sidebar:
 
     elif mode == "Multiple Choice Quiz":
         st.markdown("---")
-        st.markdown("10 random multiple choice questions")
+        st.caption("10 random multiple choice questions")
         if st.button("🎲 New Quiz"):
             st.session_state.mc_questions = random.sample(mc_indices, 10)
             st.session_state.mc_answers = {}
@@ -161,7 +121,7 @@ with st.sidebar:
 
     elif mode == "Exact Match Quiz":
         st.markdown("---")
-        st.markdown("10 random short answer questions")
+        st.caption("10 random short answer questions")
         if st.button("🎲 New Quiz"):
             st.session_state.em_questions = random.sample(em_indices, 10)
             st.session_state.em_answers = {}
@@ -186,26 +146,26 @@ def render_cards(page_indices, show_answers=False):
     .q-subject { display:inline-block; font-family:'DM Mono',monospace; font-size:0.65rem; color:#999; background:#f0ece4; padding:2px 8px; border-radius:20px; margin-bottom:0.75rem; }
     .q-type-badge { font-family:'DM Mono',monospace; font-size:0.65rem; padding:3px 8px; border-radius:4px; background:#f0f7f0; color:#4a8a4a; border:1px solid #c0dcc0; margin-bottom:0.75rem; display:inline-block; margin-left:6px; }
     .q-text { font-size:1rem; line-height:1.7; color:#2a2a2a; margin-bottom:1rem; }
+    .choices { margin:0.75rem 0; }
+    .choice { padding:4px 0; font-size:0.95rem; color:#444; }
     .answer-box { background:#f0f7f0; border:1px solid #c0dcc0; border-radius:8px; padding:0.75rem 1rem; font-family:'DM Mono',monospace; font-size:0.9rem; color:#2a6a2a; margin-top:0.75rem; }
     .answer-label { font-size:0.65rem; color:#4a8a4a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.3rem; }
-    .choices { margin:0.75rem 0; font-size:0.9rem; color:#444; }
-    .choice { padding:3px 0; }
     </style></head><body>
     """
     for orig_i in page_indices:
         ex = dataset[orig_i]
         subject = ex.get("subject") or "Unknown"
-        q_text = ex.get("question", "")
+        q_text = clean_question_text(ex)
         answer = ex.get("answer", "")
         answer_type = ex.get("answer_type") or "unknown"
-        choices = ex.get("answer_choices") or []
+        choices = parse_choices(ex)
 
         answer_section = ""
         if show_answers:
             answer_section = f'<div class="answer-box"><div class="answer-label">Answer</div>{answer}</div>'
 
         choices_html = ""
-        if answer_type == "multipleChoice" and choices:
+        if choices:
             choices_html = '<div class="choices">'
             for c in choices:
                 choices_html += f'<div class="choice">▸ {c}</div>'
@@ -220,7 +180,16 @@ def render_cards(page_indices, show_answers=False):
         </div>"""
 
     cards_html += "</body></html>"
-    components.html(cards_html, height=len(page_indices) * 320, scrolling=True)
+    components.html(cards_html, height=len(page_indices) * 340, scrolling=True)
+
+
+def render_q_iframe(q_text, subject):
+    q_html = f"""<html><head>
+    <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.75rem 1.5rem;}}</style>
+    </head><body>{q_text}</body></html>"""
+    components.html(q_html, height=140, scrolling=False)
 
 
 # ── Browse ────────────────────────────────────────────────────────────────────
@@ -251,7 +220,6 @@ if mode == "Browse":
 
     if filtered_indices:
         render_cards(page_indices, show_answers=show_answers)
-
         st.markdown("---")
         col_prev, col_info, col_next = st.columns([1, 2, 1])
         with col_prev:
@@ -285,10 +253,7 @@ elif mode == "Multiple Choice Quiz":
             )
             st.markdown(f"""
             <div class="score-box">
-                <div>
-                    <div class="score-num">{score}/10</div>
-                    <div class="score-label">Final Score</div>
-                </div>
+                <div><div class="score-num">{score}/10</div><div class="score-label">Final Score</div></div>
                 <div style="font-family:'DM Sans',sans-serif;color:#666;font-size:0.95rem;">
                     {"🏆 Perfect score! Truly remarkable." if score == 10
                      else "🎉 Excellent!" if score >= 8
@@ -300,35 +265,33 @@ elif mode == "Multiple Choice Quiz":
 
         for idx, orig_i in enumerate(q_indices):
             ex = dataset[orig_i]
-            q_text = ex.get("question", "")
+            q_text = clean_question_text(ex)
             answer = ex.get("answer", "")
-            choices = ex.get("answer_choices") or []
+            choices = parse_choices(ex)
             subject = ex.get("subject") or "Unknown"
             user_answer = st.session_state.mc_answers.get(idx)
 
             with st.container():
                 st.markdown(f"""
-                <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
-                    <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
-                    <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
+                <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:0.25rem;">
+                    <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.4rem;">Question {idx + 1} of 10</div>
+                    <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;">{subject}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
-                q_html = f"""<html><head>
-                <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
-                <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-                <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
-                </head><body>{q_text}</body></html>"""
-                components.html(q_html, height=120, scrolling=False)
+                render_q_iframe(q_text, subject)
 
                 if not submitted:
-                    selected = st.radio(
-                        f"q_{idx}",
-                        options=choices,
-                        key=f"mc_radio_{idx}",
-                        label_visibility="collapsed"
-                    )
-                    st.session_state.mc_answers[idx] = selected
+                    if choices:
+                        selected = st.radio(
+                            f"q_{idx}",
+                            options=choices,
+                            key=f"mc_radio_{idx}",
+                            label_visibility="collapsed"
+                        )
+                        st.session_state.mc_answers[idx] = selected
+                    else:
+                        st.warning("No choices available for this question.")
                 else:
                     for c in choices:
                         if c == answer and c == user_answer:
@@ -368,10 +331,7 @@ elif mode == "Exact Match Quiz":
             )
             st.markdown(f"""
             <div class="score-box">
-                <div>
-                    <div class="score-num">{score}/10</div>
-                    <div class="score-label">Final Score</div>
-                </div>
+                <div><div class="score-num">{score}/10</div><div class="score-label">Final Score</div></div>
                 <div style="font-family:'DM Sans',sans-serif;color:#666;font-size:0.95rem;">
                     {"🏆 Perfect score! Extraordinary." if score == 10
                      else "🎉 Excellent!" if score >= 8
@@ -383,24 +343,19 @@ elif mode == "Exact Match Quiz":
 
         for idx, orig_i in enumerate(q_indices):
             ex = dataset[orig_i]
-            q_text = ex.get("question", "")
+            q_text = clean_question_text(ex)
             answer = ex.get("answer", "")
             subject = ex.get("subject") or "Unknown"
             user_answer = st.session_state.em_answers.get(idx, "")
 
             st.markdown(f"""
-            <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
-                <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
-                <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
+            <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:0.25rem;">
+                <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.4rem;">Question {idx + 1} of 10</div>
+                <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;">{subject}</span>
             </div>
             """, unsafe_allow_html=True)
 
-            q_html = f"""<html><head>
-            <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
-            <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-            <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
-            </head><body>{q_text}</body></html>"""
-            components.html(q_html, height=120, scrolling=False)
+            render_q_iframe(q_text, subject)
 
             if not submitted:
                 val = st.text_input(
