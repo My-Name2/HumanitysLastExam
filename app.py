@@ -49,6 +49,16 @@ def format_q_text(q_text):
     )
 
 
+def has_image(ex):
+    """Check if question references an image."""
+    return bool(ex.get("image")) or bool(re.search(r'\b(figure|image|diagram|attached|shown|below|above|picture|graph|chart|plot)\b', ex.get("question", ""), re.IGNORECASE))
+
+
+IMAGE_NOTICE = '''<div style="margin-bottom:0.75rem;padding:8px 12px;background:#fff8ec;border:1px solid #f0d090;border-radius:8px;font-size:0.85rem;color:#8a6a2a;font-family:monospace;">
+    ⚠️ This question references an image that is not available in the public dataset.
+</div>'''
+
+
 def make_q_iframe(ex, label, show_choices=True, show_answer=False):
     """Render a question card inside an iframe with MathJax."""
     subject = ex.get("subject") or "Unknown"
@@ -71,6 +81,8 @@ def make_q_iframe(ex, label, show_choices=True, show_answer=False):
             <div style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;">{answer}</div>
         </div>'''
 
+    image_notice = IMAGE_NOTICE if has_image(ex) else ""
+
     card = f'''
     <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:4px;">
         <div style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">{label}</div>
@@ -78,6 +90,7 @@ def make_q_iframe(ex, label, show_choices=True, show_answer=False):
             <span style="font-family:monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">{subject}</span>
             <span style="font-family:monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;margin-left:6px;">{answer_type}</span>
         </div>
+        {image_notice}
         <div style="font-size:1rem;line-height:1.75;color:#2a2a2a;">{q_text}</div>
         {choices_html}
         {answer_html}
@@ -121,6 +134,7 @@ def render_browse_cards(page_indices, show_answers=False):
                 <div style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;">{answer}</div>
             </div>'''
 
+        image_notice = IMAGE_NOTICE if has_image(ex) else ""
         body += f'''
         <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;">
             <div style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question #{orig_i + 1}</div>
@@ -128,6 +142,7 @@ def render_browse_cards(page_indices, show_answers=False):
                 <span style="font-family:monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">{subject}</span>
                 <span style="font-family:monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;margin-left:6px;">{answer_type}</span>
             </div>
+            {image_notice}
             <div style="font-size:1rem;line-height:1.75;color:#2a2a2a;">{q_text}</div>
             {choices_html}{answer_html}
         </div>'''
