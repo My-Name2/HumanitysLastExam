@@ -87,6 +87,12 @@ def render_question(ex, orig_i):
 
     # Choices — each one a separate block div, purely inline styles
     choices_html = ""
+    if not choices and atype == "multipleChoice":
+        choices_html = (
+            '<div style="padding:8px 14px;margin-bottom:8px;background:#fff8ec;'
+            'border:1px solid #f0d090;border-radius:8px;font-family:monospace;'
+            'font-size:0.8rem;color:#8a6a2a;">⚠ Answer choices not available in dataset</div>'
+        )
     for label, text in choices:
         choices_html += (
             '<div style="'
@@ -147,7 +153,7 @@ def render_question(ex, orig_i):
     )
 
     body_chars = len(re.sub(r'<[^>]+>', '', body))
-    height = 200 + min(body_chars // 4, 1000) + len(choices) * 52
+    height = 220 + min(body_chars // 4, 1000) + len(choices) * 52
     components.html(html, height=height, scrolling=False)
 
 
