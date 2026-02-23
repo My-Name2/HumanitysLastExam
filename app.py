@@ -18,29 +18,104 @@ def get_question_indices(_dataset):
 
 
 def parse_choices(ex):
-    """Get answer choices from answer_choices field or extract from question text."""
+    """Get answer choices — from field first, then extract from question text."""
     choices = ex.get("answer_choices") or []
     if choices:
         return choices
 
-    # Try to extract "Answer Choices: A. ... B. ... C. ..." from question text
     q = ex.get("question", "")
     match = re.search(r'Answer Choices:\s*(.*?)$', q, re.IGNORECASE | re.DOTALL)
-    if match:
-        raw = match.group(1).strip()
-        # Split on patterns like "A." "B." etc.
-        parts = re.split(r'\s+(?=[A-E]\.)', raw)
-        choices = [p.strip() for p in parts if p.strip()]
+    if not match:
+        return []
+
+    raw = match.group(1).strip()
+    # Split on A. B. C. D. E. at word boundaries (max 5 options)
+    parts = re.split(r'(?<!\w)([A-E])\.\s', raw)
+    # parts will be like ['', 'A', 'text...', 'B', 'text...']
+    choices = []
+    for i in range(1, len(parts) - 1, 2):
+        label = parts[i]
+        text = parts[i + 1].strip().rstrip()
+        choices.append(f"{label}. {text}")
     return choices
 
 
 def clean_question_text(ex):
-    """Remove embedded 'Answer Choices: ...' from question text if present."""
+    """Remove embedded Answer Choices block from question text."""
     q = ex.get("question", "")
-    cleaned = re.sub(r'\s*Answer Choices:.*$', '', q, flags=re.IGNORECASE | re.DOTALL).strip()
-    return cleaned
+    return re.sub(r'\s*Answer Choices:.*$', '', q, flags=re.IGNORECASE | re.DOTALL).strip()
 
 
+def make_card_html(ex, orig_i, show_answer=False, label=None):
+    subject = ex.get("subject") or "Unknown"
+    q_text = clean_question_text(ex)
+    answer = ex.get("answer", "")
+    answer_type = ex.get("answer_type") or "unknown"
+    choices = parse_choices(ex)
+
+    # Format code blocks
+    q_text = re.sub(r'```(.*?)```', r'<pre style="background:#f4f0e8;border:1px solid #e0dbd0;border-radius:6px;padding:0.75rem;font-size:0.85rem;overflow-x:auto;white-space:pre-wrap;">\1</pre>', q_text, flags=re.DOTALL)
+
+    display_label = label if label else f"Question #{orig_i + 1}"
+
+    choices_html = ""
+    if choices:
+        choices_html = '<div style="margin-top:1rem;display:flex;flex-direction:column;gap:6px;">'
+        for c in choices:
+            choices_html += f'<div style="padding:8px 12px;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">▸ {c}</div>'
+        choices_html += '</div>'
+
+    answer_html = ""
+    if show_answer:
+        answer_html = f'''<div style="margin-top:1rem;background:#f0f7f0;border:1px solid #c0dcc0;border-radius:8px;padding:0.75rem 1rem;">
+            <div style="font-family:'DM Mono',monospace;font-size:0.6rem;color:#4a8a4a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.3rem;">Answer</div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.9rem;color:#2a6a2a;">{answer}</div>
+        </div>'''
+
+    return f'''
+    <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;">
+        <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.6rem;">{display_label}</div>
+        <div style="margin-bottom:0.6rem;">
+            <span style="display:inline-block;font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">{subject}</span>
+            <span style="display:inline-block;font-family:'DM Mono',monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;margin-left:6px;">{answer_type}</span>
+        </div>
+        <div style="font-size:1rem;line-height:1.75;color:#2a2a2a;margin-top:0.75rem;">{q_text}</div>
+        {choices_html}
+        {answer_html}
+    </div>'''
+
+
+def render_cards(page_indices, show_answers=False):
+    body = ""
+    for orig_i in page_indices:
+        ex = dataset[orig_i]
+        body += make_card_html(ex, orig_i, show_answer=show_answers)
+
+    html = f"""<html><head>
+    <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+    body {{ background:#f7f5f0; margin:0; padding:4px; font-family:'DM Sans',sans-serif; }}
+    </style>
+    </head><body>{body}</body></html>"""
+    components.html(html, height=len(page_indices) * 360, scrolling=True)
+
+
+def render_single_q(ex, orig_i, label=None):
+    body = make_card_html(ex, orig_i, show_answer=False, label=label)
+    html = f"""<html><head>
+    <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+    body {{ background:#f7f5f0; margin:0; padding:4px; font-family:'DM Sans',sans-serif; }}
+    </style>
+    </head><body>{body}</body></html>"""
+    components.html(html, height=280, scrolling=False)
+
+
+# ── Load ──────────────────────────────────────────────────────────────────────
 token = st.secrets["HF_TOKEN"]
 dataset = load_hle(token)
 mc_indices, em_indices, multi = get_question_indices(dataset)
@@ -50,37 +125,20 @@ st.set_page_config(page_title="Humanity's Last Exam", page_icon="🧠", layout="
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    background-color: #f7f5f0;
-    color: #1a1a1a;
-}
+html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; background-color: #f7f5f0; color: #1a1a1a; }
 h1, h2, h3 { font-family: 'Playfair Display', serif; }
 .stApp { background-color: #f7f5f0; }
-
-.hle-header {
-    text-align: center;
-    padding: 2.5rem 0 1.5rem;
-    border-bottom: 2px solid #e0dbd0;
-    margin-bottom: 2rem;
-}
+.hle-header { text-align: center; padding: 2.5rem 0 1.5rem; border-bottom: 2px solid #e0dbd0; margin-bottom: 2rem; }
 .hle-header h1 { font-size: 3rem; font-weight: 900; letter-spacing: -1px; color: #1a1a1a; margin: 0; }
 .hle-header .subtitle { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #999; letter-spacing: 3px; text-transform: uppercase; margin-top: 0.5rem; }
-
 section[data-testid="stSidebar"] { background: #eeeae2 !important; border-right: 1px solid #e0dbd0; }
-
 .stButton > button { background: #fff !important; color: #8a6a2a !important; border: 1px solid #c8a96e !important; border-radius: 8px !important; font-family: 'DM Mono', monospace !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }
 .stButton > button:hover { background: #c8a96e !important; color: #fff !important; }
-
 .stSelectbox label, .stRadio label, .stTextInput label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #666 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
-
 div[data-testid="stMetric"] { background: #fff; border: 1px solid #e0dbd0; border-radius: 10px; padding: 1rem; }
 div[data-testid="stMetric"] label { color: #999 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
 div[data-testid="stMetric"] div { color: #8a6a2a !important; font-family: 'Playfair Display', serif !important; }
-
 hr { border-color: #e0dbd0 !important; }
-
 .score-box { background: #fff; border: 1px solid #e0dbd0; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 2rem; }
 .score-num { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: #8a6a2a; }
 .score-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #999; letter-spacing: 2px; text-transform: uppercase; }
@@ -94,6 +152,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 📚 Mode")
     mode = st.radio("", ["Browse", "Multiple Choice Quiz", "Exact Match Quiz"], label_visibility="collapsed")
@@ -132,66 +191,6 @@ with st.sidebar:
                 st.session_state.pop(k, None)
             st.rerun()
 
-
-def render_cards(page_indices, show_answers=False):
-    cards_html = """
-    <html><head>
-    <script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}};</script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-    body { background:#f7f5f0; color:#1a1a1a; font-family:'DM Sans',sans-serif; margin:0; padding:4px; }
-    .q-card { background:#fff; border:1px solid #e0dbd0; border-radius:12px; padding:1.5rem; margin-bottom:1.25rem; }
-    .q-number { font-family:'DM Mono',monospace; font-size:0.7rem; color:#8a6a2a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.5rem; }
-    .q-subject { display:inline-block; font-family:'DM Mono',monospace; font-size:0.65rem; color:#999; background:#f0ece4; padding:2px 8px; border-radius:20px; margin-bottom:0.75rem; }
-    .q-type-badge { font-family:'DM Mono',monospace; font-size:0.65rem; padding:3px 8px; border-radius:4px; background:#f0f7f0; color:#4a8a4a; border:1px solid #c0dcc0; margin-bottom:0.75rem; display:inline-block; margin-left:6px; }
-    .q-text { font-size:1rem; line-height:1.7; color:#2a2a2a; margin-bottom:1rem; }
-    .choices { margin:0.75rem 0; }
-    .choice { padding:4px 0; font-size:0.95rem; color:#444; }
-    .answer-box { background:#f0f7f0; border:1px solid #c0dcc0; border-radius:8px; padding:0.75rem 1rem; font-family:'DM Mono',monospace; font-size:0.9rem; color:#2a6a2a; margin-top:0.75rem; }
-    .answer-label { font-size:0.65rem; color:#4a8a4a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.3rem; }
-    </style></head><body>
-    """
-    for orig_i in page_indices:
-        ex = dataset[orig_i]
-        subject = ex.get("subject") or "Unknown"
-        q_text = clean_question_text(ex)
-        answer = ex.get("answer", "")
-        answer_type = ex.get("answer_type") or "unknown"
-        choices = parse_choices(ex)
-
-        answer_section = ""
-        if show_answers:
-            answer_section = f'<div class="answer-box"><div class="answer-label">Answer</div>{answer}</div>'
-
-        choices_html = ""
-        if choices:
-            choices_html = '<div class="choices">'
-            for c in choices:
-                choices_html += f'<div class="choice">▸ {c}</div>'
-            choices_html += "</div>"
-
-        cards_html += f"""
-        <div class="q-card">
-            <div class="q-number">Question #{orig_i + 1}</div>
-            <span class="q-subject">{subject}</span><span class="q-type-badge">{answer_type}</span>
-            <div class="q-text">{q_text}</div>
-            {choices_html}{answer_section}
-        </div>"""
-
-    cards_html += "</body></html>"
-    components.html(cards_html, height=len(page_indices) * 340, scrolling=True)
-
-
-def render_q_iframe(q_text, subject):
-    q_html = f"""<html><head>
-    <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-    <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.75rem 1.5rem;}}</style>
-    </head><body>{q_text}</body></html>"""
-    components.html(q_html, height=140, scrolling=False)
-
-
 # ── Browse ────────────────────────────────────────────────────────────────────
 if mode == "Browse":
     filtered_indices = [
@@ -218,30 +217,30 @@ if mode == "Browse":
     page_start = st.session_state.browse_page * PER_PAGE
     page_indices = filtered_indices[page_start: page_start + PER_PAGE]
 
-    if filtered_indices:
-        render_cards(page_indices, show_answers=show_answers)
-        st.markdown("---")
-        col_prev, col_info, col_next = st.columns([1, 2, 1])
-        with col_prev:
-            if st.button("← Previous", disabled=st.session_state.browse_page == 0):
-                st.session_state.browse_page -= 1
-                st.rerun()
-        with col_info:
-            st.markdown(
-                f"<div style='text-align:center;font-family:DM Mono,monospace;font-size:0.8rem;color:#999;padding-top:0.5rem'>"
-                f"Page {st.session_state.browse_page + 1} of {total_pages} &nbsp;·&nbsp; "
-                f"Q {page_start + 1}–{min(page_start + PER_PAGE, len(filtered_indices))} of {len(filtered_indices)}</div>",
-                unsafe_allow_html=True
-            )
-        with col_next:
-            if st.button("Next →", disabled=st.session_state.browse_page >= total_pages - 1):
-                st.session_state.browse_page += 1
-                st.rerun()
+    render_cards(page_indices, show_answers=show_answers)
+
+    st.markdown("---")
+    col_prev, col_info, col_next = st.columns([1, 2, 1])
+    with col_prev:
+        if st.button("← Previous", disabled=st.session_state.browse_page == 0):
+            st.session_state.browse_page -= 1
+            st.rerun()
+    with col_info:
+        st.markdown(
+            f"<div style='text-align:center;font-family:DM Mono,monospace;font-size:0.8rem;color:#999;padding-top:0.5rem'>"
+            f"Page {st.session_state.browse_page + 1} of {total_pages} &nbsp;·&nbsp; "
+            f"Q {page_start + 1}–{min(page_start + PER_PAGE, len(filtered_indices))} of {len(filtered_indices)}</div>",
+            unsafe_allow_html=True
+        )
+    with col_next:
+        if st.button("Next →", disabled=st.session_state.browse_page >= total_pages - 1):
+            st.session_state.browse_page += 1
+            st.rerun()
 
 # ── Multiple Choice Quiz ──────────────────────────────────────────────────────
 elif mode == "Multiple Choice Quiz":
     if "mc_questions" not in st.session_state:
-        st.info("Click **🎲 New Quiz** in the sidebar to start a 10-question multiple choice quiz.")
+        st.info("Click **🎲 New Quiz** in the sidebar to start.")
     else:
         q_indices = st.session_state.mc_questions
         submitted = st.session_state.get("mc_submitted", False)
@@ -265,45 +264,35 @@ elif mode == "Multiple Choice Quiz":
 
         for idx, orig_i in enumerate(q_indices):
             ex = dataset[orig_i]
-            q_text = clean_question_text(ex)
             answer = ex.get("answer", "")
             choices = parse_choices(ex)
-            subject = ex.get("subject") or "Unknown"
             user_answer = st.session_state.mc_answers.get(idx)
 
-            with st.container():
-                st.markdown(f"""
-                <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:0.25rem;">
-                    <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.4rem;">Question {idx + 1} of 10</div>
-                    <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;">{subject}</span>
-                </div>
-                """, unsafe_allow_html=True)
+            render_single_q(ex, orig_i, label=f"Question {idx + 1} of 10")
 
-                render_q_iframe(q_text, subject)
-
-                if not submitted:
-                    if choices:
-                        selected = st.radio(
-                            f"q_{idx}",
-                            options=choices,
-                            key=f"mc_radio_{idx}",
-                            label_visibility="collapsed"
-                        )
-                        st.session_state.mc_answers[idx] = selected
-                    else:
-                        st.warning("No choices available for this question.")
+            if not submitted:
+                if choices:
+                    selected = st.radio(
+                        f"q_{idx}",
+                        options=choices,
+                        key=f"mc_radio_{idx}",
+                        label_visibility="collapsed"
+                    )
+                    st.session_state.mc_answers[idx] = selected
                 else:
-                    for c in choices:
-                        if c == answer and c == user_answer:
-                            st.success(f"✅ **{c}** ← your answer (correct!)")
-                        elif c == answer:
-                            st.success(f"✅ **{c}** ← correct answer")
-                        elif c == user_answer:
-                            st.error(f"❌ {c} ← your answer")
-                        else:
-                            st.markdown(f"○ {c}")
+                    st.warning("No choices found for this question.")
+            else:
+                for c in choices:
+                    if c == answer and c == user_answer:
+                        st.success(f"✅ **{c}** ← your answer (correct!)")
+                    elif c == answer:
+                        st.success(f"✅ **{c}** ← correct answer")
+                    elif c == user_answer:
+                        st.error(f"❌ {c} ← your answer")
+                    else:
+                        st.markdown(f"○ {c}")
 
-                st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
         if not submitted:
             if st.button("Submit Quiz", use_container_width=True):
@@ -319,7 +308,7 @@ elif mode == "Multiple Choice Quiz":
 # ── Exact Match Quiz ──────────────────────────────────────────────────────────
 elif mode == "Exact Match Quiz":
     if "em_questions" not in st.session_state:
-        st.info("Click **🎲 New Quiz** in the sidebar to start a 10-question short answer quiz.")
+        st.info("Click **🎲 New Quiz** in the sidebar to start.")
     else:
         q_indices = st.session_state.em_questions
         submitted = st.session_state.get("em_submitted", False)
@@ -343,19 +332,10 @@ elif mode == "Exact Match Quiz":
 
         for idx, orig_i in enumerate(q_indices):
             ex = dataset[orig_i]
-            q_text = clean_question_text(ex)
             answer = ex.get("answer", "")
-            subject = ex.get("subject") or "Unknown"
             user_answer = st.session_state.em_answers.get(idx, "")
 
-            st.markdown(f"""
-            <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:0.25rem;">
-                <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.4rem;">Question {idx + 1} of 10</div>
-                <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;">{subject}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            render_q_iframe(q_text, subject)
+            render_single_q(ex, orig_i, label=f"Question {idx + 1} of 10")
 
             if not submitted:
                 val = st.text_input(
