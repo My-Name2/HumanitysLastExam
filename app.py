@@ -124,7 +124,9 @@ def render_question(ex, orig_i):
         + '</div></body></html>'
     )
 
-    height = 160 + min(len(body) // 5, 400) + len(choices) * 58
+    body_chars = len(re.sub(r'<[^>]+>', '', body))
+    body_lines = body.count('\n') + 1
+    height = 180 + min(body_chars // 4, 1200) + body_lines * 18 + len(choices) * 60
     components.html(html, height=height, scrolling=False)
 
 
