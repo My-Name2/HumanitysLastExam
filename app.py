@@ -19,6 +19,8 @@ def get_indices(_dataset):
 
 
 def split_choices(raw):
+    # Normalize "A.Foo" (no space) -> "A. Foo"
+    raw = re.sub(r'(?:^| )([A-Z])\.([^\s])', r' \1. \2', raw).strip()
     first = re.match(r'^([A-Z])\. ', raw)
     if not first:
         return []
@@ -40,9 +42,22 @@ def split_choices(raw):
 
 def parse_question(ex):
     q = ex.get("question", "")
+
+    # Try "Answer Choices:" header first
     m = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
-    body = q[:m.start()].strip() if m else q.strip()
-    choices_raw = q[m.end():].strip() if m else ""
+    if m:
+        body = q[:m.start()].strip()
+        choices_raw = q[m.end():].strip()
+    else:
+        # Try detecting choices embedded after sentence-ending punctuation: "...? A. foo B. bar"
+        m2 = re.search(r'(?<=[.?!])\s+(A\.)', q)
+        if m2:
+            body = q[:m2.start()].strip()
+            choices_raw = q[m2.start():].strip()
+        else:
+            body = q.strip()
+            choices_raw = ""
+
     body = re.sub(
         r'```(.*?)```',
         lambda x: (
@@ -53,6 +68,9 @@ def parse_question(ex):
         body, flags=re.DOTALL
     )
     choices = split_choices(choices_raw) if choices_raw else []
+    # Discard if only 1 "choice" — probably a false positive
+    if len(choices) < 2:
+        choices = []
     img = ex.get("image", "")
     if img and not img.startswith("data:"):
         img = "data:image/jpeg;base64," + img
