@@ -1,5 +1,6 @@
 import random
 import streamlit as st
+import streamlit.components.v1 as components
 from datasets import load_dataset
 
 
@@ -20,16 +21,6 @@ dataset = load_hle(token)
 answer_types, multi = get_filters(dataset)
 
 st.set_page_config(page_title="Humanity's Last Exam", page_icon="🧠", layout="wide")
-
-st.markdown("""
-<script>
-window.MathJax = {
-  tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] },
-  startup: { typeset: false }
-};
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
@@ -112,6 +103,33 @@ page_indices = filtered_indices[page_start: page_start + PER_PAGE]
 if not filtered_indices:
     st.info("No questions match your filters.")
 else:
+    # Build all cards as one HTML block with MathJax
+    cards_html = """
+    <html>
+    <head>
+    <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$','$$'],['\\\\[','\\\\]']] }
+    };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
+    body { background: #0a0a0f; color: #e8e6e0; font-family: 'DM Sans', sans-serif; margin: 0; padding: 0; }
+    .q-card { background: #13131f; border: 1px solid #2a2a3a; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+    .q-number { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #c8a96e; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.75rem; }
+    .q-subject { display: inline-block; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #888; background: #1e1e2e; padding: 3px 10px; border-radius: 20px; margin-bottom: 1rem; }
+    .q-text { font-size: 1rem; line-height: 1.7; color: #ddd8cc; margin-bottom: 1.25rem; }
+    .q-type-badge { font-family: 'DM Mono', monospace; font-size: 0.65rem; padding: 3px 8px; border-radius: 4px; background: #1a2a1a; color: #6aaa6a; border: 1px solid #2a4a2a; margin-bottom: 1rem; display: inline-block; }
+    .answer-box { background: #0d1a0d; border: 1px solid #2a4a2a; border-radius: 8px; padding: 1rem 1.25rem; font-family: 'DM Mono', monospace; font-size: 0.9rem; color: #7acc7a; margin-top: 1rem; }
+    .answer-label { font-size: 0.65rem; color: #4a7a4a; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.4rem; }
+    .choices { margin: 0.75rem 0; font-size: 0.9rem; color: #bbb; }
+    .choice { padding: 3px 0; }
+    </style>
+    </head>
+    <body>
+    """
+
     for orig_i in page_indices:
         ex = dataset[orig_i]
         subject = ex.get("subject") or "Unknown"
@@ -126,12 +144,12 @@ else:
 
         choices_html = ""
         if answer_type == "multipleChoice" and choices:
-            choices_html = "<div style='margin: 0.75rem 0; font-size:0.9rem; color:#bbb;'>"
+            choices_html = '<div class="choices">'
             for c in choices:
-                choices_html += f"<div style='padding:3px 0'>▸ {c}</div>"
+                choices_html += f'<div class="choice">▸ {c}</div>'
             choices_html += "</div>"
 
-        st.markdown(f"""
+        cards_html += f"""
         <div class="q-card">
             <div class="q-number">Question #{orig_i + 1}</div>
             <span class="q-subject">{subject}</span>
@@ -140,8 +158,12 @@ else:
             {choices_html}
             {answer_section}
         </div>
-        <script>if(window.MathJax){{MathJax.typesetPromise();}}</script>
-        """, unsafe_allow_html=True)
+        """
+
+    cards_html += "</body></html>"
+
+    # Render as a self-contained iframe so MathJax scripts actually run
+    components.html(cards_html, height=PER_PAGE * 320, scrolling=True)
 
     st.markdown("---")
     col_prev, col_info, col_next = st.columns([1, 2, 1])
