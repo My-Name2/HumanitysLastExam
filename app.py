@@ -13,8 +13,7 @@ def load_hle(token):
 def get_question_indices(_dataset):
     mc = [i for i, ex in enumerate(_dataset) if ex.get("answer_type") == "multipleChoice"]
     em = [i for i, ex in enumerate(_dataset) if ex.get("answer_type") == "exactMatch"]
-    multi = len(mc)
-    return mc, em, multi
+    return mc, em, len(mc)
 
 
 token = st.secrets["HF_TOKEN"]
@@ -26,23 +25,104 @@ st.set_page_config(page_title="Humanity's Last Exam", page_icon="🧠", layout="
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
-html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; background-color: #0a0a0f; color: #e8e6e0; }
+
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #f7f5f0;
+    color: #1a1a1a;
+}
 h1, h2, h3 { font-family: 'Playfair Display', serif; }
-.stApp { background-color: #0a0a0f; }
-.hle-header { text-align: center; padding: 2.5rem 0 1.5rem; border-bottom: 1px solid #2a2a3a; margin-bottom: 2rem; }
-.hle-header h1 { font-size: 3rem; font-weight: 900; letter-spacing: -1px; color: #f5f0e8; margin: 0; }
-.hle-header .subtitle { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #666; letter-spacing: 3px; text-transform: uppercase; margin-top: 0.5rem; }
-section[data-testid="stSidebar"] { background: #0d0d18 !important; border-right: 1px solid #2a2a3a; }
-.stButton > button { background: #1e1e2e !important; color: #c8a96e !important; border: 1px solid #c8a96e !important; border-radius: 8px !important; font-family: 'DM Mono', monospace !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }
-.stButton > button:hover { background: #c8a96e !important; color: #0a0a0f !important; }
-.stSelectbox label, .stRadio label, .stTextInput label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #888 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
-div[data-testid="stMetric"] { background: #13131f; border: 1px solid #2a2a3a; border-radius: 10px; padding: 1rem; }
-div[data-testid="stMetric"] label { color: #888 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
-div[data-testid="stMetric"] div { color: #c8a96e !important; font-family: 'Playfair Display', serif !important; }
-hr { border-color: #2a2a3a !important; }
-.score-box { background: #13131f; border: 1px solid #2a2a3a; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 2rem; }
-.score-num { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: #c8a96e; }
-.score-label { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #666; letter-spacing: 2px; text-transform: uppercase; }
+.stApp { background-color: #f7f5f0; }
+
+.hle-header {
+    text-align: center;
+    padding: 2.5rem 0 1.5rem;
+    border-bottom: 2px solid #e0dbd0;
+    margin-bottom: 2rem;
+}
+.hle-header h1 {
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: #1a1a1a;
+    margin: 0;
+}
+.hle-header .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: #999;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+}
+
+section[data-testid="stSidebar"] {
+    background: #eeeae2 !important;
+    border-right: 1px solid #e0dbd0;
+}
+
+.stButton > button {
+    background: #fff !important;
+    color: #8a6a2a !important;
+    border: 1px solid #c8a96e !important;
+    border-radius: 8px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.8rem !important;
+    letter-spacing: 1px !important;
+}
+.stButton > button:hover {
+    background: #c8a96e !important;
+    color: #fff !important;
+}
+
+.stSelectbox label, .stRadio label, .stTextInput label {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.75rem !important;
+    color: #666 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+}
+
+div[data-testid="stMetric"] {
+    background: #fff;
+    border: 1px solid #e0dbd0;
+    border-radius: 10px;
+    padding: 1rem;
+}
+div[data-testid="stMetric"] label {
+    color: #999 !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.7rem !important;
+}
+div[data-testid="stMetric"] div {
+    color: #8a6a2a !important;
+    font-family: 'Playfair Display', serif !important;
+}
+
+hr { border-color: #e0dbd0 !important; }
+
+.score-box {
+    background: #fff;
+    border: 1px solid #e0dbd0;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+.score-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: #8a6a2a;
+}
+.score-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: #999;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -53,7 +133,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Mode selection ────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 📚 Mode")
     mode = st.radio("", ["Browse", "Multiple Choice Quiz", "Exact Match Quiz"], label_visibility="collapsed")
@@ -97,19 +176,19 @@ with st.sidebar:
 def render_cards(page_indices, show_answers=False):
     cards_html = """
     <html><head>
-    <script>window.MathJax = {tex: {inlineMath: [['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}};</script>
+    <script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}};</script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-    body { background:#0a0a0f; color:#e8e6e0; font-family:'DM Sans',sans-serif; margin:0; padding:4px; }
-    .q-card { background:#13131f; border:1px solid #2a2a3a; border-radius:12px; padding:1.5rem; margin-bottom:1.25rem; }
-    .q-number { font-family:'DM Mono',monospace; font-size:0.7rem; color:#c8a96e; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.5rem; }
-    .q-subject { display:inline-block; font-family:'DM Mono',monospace; font-size:0.65rem; color:#888; background:#1e1e2e; padding:2px 8px; border-radius:20px; margin-bottom:0.75rem; }
-    .q-type-badge { font-family:'DM Mono',monospace; font-size:0.65rem; padding:3px 8px; border-radius:4px; background:#1a2a1a; color:#6aaa6a; border:1px solid #2a4a2a; margin-bottom:0.75rem; display:inline-block; margin-left:6px; }
-    .q-text { font-size:1rem; line-height:1.7; color:#ddd8cc; margin-bottom:1rem; }
-    .answer-box { background:#0d1a0d; border:1px solid #2a4a2a; border-radius:8px; padding:0.75rem 1rem; font-family:'DM Mono',monospace; font-size:0.9rem; color:#7acc7a; margin-top:0.75rem; }
-    .answer-label { font-size:0.65rem; color:#4a7a4a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.3rem; }
-    .choices { margin:0.75rem 0; font-size:0.9rem; color:#bbb; }
+    body { background:#f7f5f0; color:#1a1a1a; font-family:'DM Sans',sans-serif; margin:0; padding:4px; }
+    .q-card { background:#fff; border:1px solid #e0dbd0; border-radius:12px; padding:1.5rem; margin-bottom:1.25rem; }
+    .q-number { font-family:'DM Mono',monospace; font-size:0.7rem; color:#8a6a2a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.5rem; }
+    .q-subject { display:inline-block; font-family:'DM Mono',monospace; font-size:0.65rem; color:#999; background:#f0ece4; padding:2px 8px; border-radius:20px; margin-bottom:0.75rem; }
+    .q-type-badge { font-family:'DM Mono',monospace; font-size:0.65rem; padding:3px 8px; border-radius:4px; background:#f0f7f0; color:#4a8a4a; border:1px solid #c0dcc0; margin-bottom:0.75rem; display:inline-block; margin-left:6px; }
+    .q-text { font-size:1rem; line-height:1.7; color:#2a2a2a; margin-bottom:1rem; }
+    .answer-box { background:#f0f7f0; border:1px solid #c0dcc0; border-radius:8px; padding:0.75rem 1rem; font-family:'DM Mono',monospace; font-size:0.9rem; color:#2a6a2a; margin-top:0.75rem; }
+    .answer-label { font-size:0.65rem; color:#4a8a4a; letter-spacing:2px; text-transform:uppercase; margin-bottom:0.3rem; }
+    .choices { margin:0.75rem 0; font-size:0.9rem; color:#444; }
     .choice { padding:3px 0; }
     </style></head><body>
     """
@@ -144,7 +223,7 @@ def render_cards(page_indices, show_answers=False):
     components.html(cards_html, height=len(page_indices) * 320, scrolling=True)
 
 
-# ── Browse mode ───────────────────────────────────────────────────────────────
+# ── Browse ────────────────────────────────────────────────────────────────────
 if mode == "Browse":
     filtered_indices = [
         i for i, ex in enumerate(dataset)
@@ -181,7 +260,7 @@ if mode == "Browse":
                 st.rerun()
         with col_info:
             st.markdown(
-                f"<div style='text-align:center;font-family:DM Mono,monospace;font-size:0.8rem;color:#888;padding-top:0.5rem'>"
+                f"<div style='text-align:center;font-family:DM Mono,monospace;font-size:0.8rem;color:#999;padding-top:0.5rem'>"
                 f"Page {st.session_state.browse_page + 1} of {total_pages} &nbsp;·&nbsp; "
                 f"Q {page_start + 1}–{min(page_start + PER_PAGE, len(filtered_indices))} of {len(filtered_indices)}</div>",
                 unsafe_allow_html=True
@@ -210,7 +289,7 @@ elif mode == "Multiple Choice Quiz":
                     <div class="score-num">{score}/10</div>
                     <div class="score-label">Final Score</div>
                 </div>
-                <div style="font-family:'DM Sans',sans-serif; color:#888; font-size:0.95rem;">
+                <div style="font-family:'DM Sans',sans-serif;color:#666;font-size:0.95rem;">
                     {"🏆 Perfect score! Truly remarkable." if score == 10
                      else "🎉 Excellent!" if score >= 8
                      else "👍 Good effort!" if score >= 5
@@ -225,22 +304,20 @@ elif mode == "Multiple Choice Quiz":
             answer = ex.get("answer", "")
             choices = ex.get("answer_choices") or []
             subject = ex.get("subject") or "Unknown"
-
             user_answer = st.session_state.mc_answers.get(idx)
 
             with st.container():
                 st.markdown(f"""
-                <div style="background:#13131f;border:1px solid #2a2a3a;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
-                    <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#c8a96e;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
-                    <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#888;background:#1e1e2e;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
+                <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
+                    <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
+                    <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                # Render question text with MathJax
                 q_html = f"""<html><head>
                 <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
                 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-                <style>body{{background:#13131f;color:#ddd8cc;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
+                <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
                 </head><body>{q_text}</body></html>"""
                 components.html(q_html, height=120, scrolling=False)
 
@@ -255,11 +332,11 @@ elif mode == "Multiple Choice Quiz":
                 else:
                     for c in choices:
                         if c == answer and c == user_answer:
-                            st.markdown(f"✅ **{c}** ← your answer (correct!)")
+                            st.success(f"✅ **{c}** ← your answer (correct!)")
                         elif c == answer:
-                            st.markdown(f"✅ **{c}** ← correct answer")
+                            st.success(f"✅ **{c}** ← correct answer")
                         elif c == user_answer:
-                            st.markdown(f"❌ ~~{c}~~ ← your answer")
+                            st.error(f"❌ {c} ← your answer")
                         else:
                             st.markdown(f"○ {c}")
 
@@ -295,7 +372,7 @@ elif mode == "Exact Match Quiz":
                     <div class="score-num">{score}/10</div>
                     <div class="score-label">Final Score</div>
                 </div>
-                <div style="font-family:'DM Sans',sans-serif; color:#888; font-size:0.95rem;">
+                <div style="font-family:'DM Sans',sans-serif;color:#666;font-size:0.95rem;">
                     {"🏆 Perfect score! Extraordinary." if score == 10
                      else "🎉 Excellent!" if score >= 8
                      else "👍 Good effort!" if score >= 5
@@ -312,22 +389,22 @@ elif mode == "Exact Match Quiz":
             user_answer = st.session_state.em_answers.get(idx, "")
 
             st.markdown(f"""
-            <div style="background:#13131f;border:1px solid #2a2a3a;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
-                <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#c8a96e;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
-                <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#888;background:#1e1e2e;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
+            <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:0.5rem;">
+                <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question {idx + 1} of 10</div>
+                <div style="font-family:'DM Mono',monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:0.75rem;">{subject}</div>
             </div>
             """, unsafe_allow_html=True)
 
             q_html = f"""<html><head>
             <script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
             <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-            <style>body{{background:#13131f;color:#ddd8cc;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
+            <style>body{{background:#fff;color:#2a2a2a;font-family:'DM Sans',sans-serif;font-size:1rem;line-height:1.7;margin:0;padding:0.5rem 1.5rem;}}</style>
             </head><body>{q_text}</body></html>"""
             components.html(q_html, height=120, scrolling=False)
 
             if not submitted:
                 val = st.text_input(
-                    f"Your answer",
+                    "Your answer",
                     key=f"em_input_{idx}",
                     placeholder="Type your answer here...",
                     label_visibility="collapsed"
@@ -336,9 +413,9 @@ elif mode == "Exact Match Quiz":
             else:
                 is_correct = user_answer.strip().lower() == answer.strip().lower()
                 if is_correct:
-                    st.markdown(f"✅ **Correct!** Answer: `{answer}`")
+                    st.success(f"✅ Correct! Answer: `{answer}`")
                 else:
-                    st.markdown(f"❌ Your answer: `{user_answer or '(blank)'}` — Correct: `{answer}`")
+                    st.error(f"❌ Your answer: `{user_answer or '(blank)'}` — Correct: `{answer}`")
 
             st.markdown("<br>", unsafe_allow_html=True)
 
