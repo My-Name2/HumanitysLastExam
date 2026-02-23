@@ -18,53 +18,61 @@ def get_indices(_dataset):
     return all_idx, mc, em
 
 
-def split_choices(raw):
-    # Normalize "A.Foo" (no space) -> "A. Foo"
-    raw = re.sub(r'(?:^| )([A-Z])\.([^\s])', r' \1. \2', raw).strip()
-    first = re.match(r'^([A-Z])\. ', raw)
-    if not first:
+def parse_choices_from_raw(raw):
+    """Parse choices from a raw string. Tries newline-split first, falls back to inline."""
+    if not raw:
         return []
-    results = []
-    label = first.group(1)
+
+    # Strategy 1: newline-separated "A. foo\nB. bar"
+    lines = [l.strip() for l in raw.split('\n') if l.strip()]
+    choices = []
+    for line in lines:
+        m = re.match(r'^([A-Z])\.\s+(.*)', line)
+        if m:
+            choices.append((m.group(1), m.group(2).strip()))
+    if len(choices) >= 2:
+        return choices
+
+    # Strategy 2: inline "A. foo B. bar C. baz" — walk sequentially
+    raw = re.sub(r'(?:^| )([A-Z])\.([^\s])', r' \1. \2', raw).strip()
+    m = re.match(r'^([A-Z])\. ', raw)
+    if not m:
+        return []
+    choices = []
+    label = m.group(1)
     pos = 3
     while True:
         nxt = chr(ord(label) + 1)
-        m = re.search(' ' + nxt + r'\. ', raw[pos:])
-        if m:
-            results.append((label, raw[pos:pos + m.start()].strip()))
+        nxt_m = re.search(' ' + nxt + r'\. ', raw[pos:])
+        if nxt_m:
+            choices.append((label, raw[pos:pos + nxt_m.start()].strip()))
             label = nxt
-            pos = pos + m.start() + len(nxt) + 3
+            pos = pos + nxt_m.start() + len(nxt) + 3
         else:
-            results.append((label, raw[pos:].strip()))
+            choices.append((label, raw[pos:].strip()))
             break
-    return results
+    return choices if len(choices) >= 2 else []
 
 
 def parse_question(ex):
     q = ex.get("question", "")
 
-    # 1. Check dedicated answer_choices field
-    ac_field = ex.get("answer_choices") or ""
-
-    # 2. Try "Answer Choices:" header in question text
+    # Find "Answer Choices:" divider in question text
     m = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
-
-    # 3. Try detecting choices embedded after sentence-ending punctuation
-    m2 = re.search(r'(?<=[.?!])\s+(A\.)', q) if not m else None
-
-    if ac_field:
-        choices_raw = ac_field
-        body = q.strip()
-    elif m:
+    if m:
         body = q[:m.start()].strip()
         choices_raw = q[m.end():].strip()
-    elif m2:
-        body = q[:m2.start()].strip()
-        choices_raw = q[m2.start():].strip()
     else:
-        body = q.strip()
-        choices_raw = ""
+        # Try detecting inline choices after sentence-ending punctuation "...? A. foo"
+        m2 = re.search(r'(?<=[.?!])\s+(A\.)', q)
+        if m2:
+            body = q[:m2.start()].strip()
+            choices_raw = q[m2.start():].strip()
+        else:
+            body = q.strip()
+            choices_raw = ""
 
+    # Format code blocks in body
     body = re.sub(
         r'```(.*?)```',
         lambda x: (
@@ -74,53 +82,54 @@ def parse_question(ex):
         ),
         body, flags=re.DOTALL
     )
-    choices = split_choices(choices_raw) if choices_raw else []
-    if len(choices) < 2:
-        choices = []
+    # Convert bare newlines in body to <br> for display
+    body = body.replace('\n', '<br>')
+
+    choices = parse_choices_from_raw(choices_raw)
+
     img = ex.get("image", "")
     if img and not img.startswith("data:"):
         img = "data:image/jpeg;base64," + img
-    return body, choices, ex.get("answer", ""), ex.get("answer_type") or "unknown", ex.get("subject") or "Unknown", img
+
+    return (
+        body,
+        choices,
+        ex.get("answer", ""),
+        ex.get("answer_type") or "unknown",
+        ex.get("subject") or "Unknown",
+        img,
+    )
 
 
 def render_question(ex, orig_i):
     body, choices, answer, atype, subject, img = parse_question(ex)
 
-    # Image
     img_html = ""
     if img:
-        img_html = f'<img src="{img}" style="max-width:100%;border-radius:8px;border:1px solid #e0dbd0;margin-bottom:1rem;display:block;">'
+        img_html = (
+            '<img src="' + img + '" style="max-width:100%;border-radius:8px;'
+            'border:1px solid #e0dbd0;margin-bottom:1rem;display:block;">'
+        )
 
-    # Choices — each one a separate block div, purely inline styles
     choices_html = ""
-    if not choices and atype == "multipleChoice":
+    if choices:
+        for label, text in choices:
+            choices_html += (
+                '<div style="display:block;width:100%;padding:9px 14px;margin-bottom:6px;'
+                'background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;'
+                'font-size:0.95rem;color:#333;line-height:1.5;">'
+                '<span style="font-weight:700;color:#8a6a2a;margin-right:8px;'
+                'font-family:monospace;">' + label + '.</span>' + text +
+                '</div>'
+            )
+    elif atype == "multipleChoice":
         choices_html = (
             '<div style="padding:8px 14px;margin-bottom:8px;background:#fff8ec;'
             'border:1px solid #f0d090;border-radius:8px;font-family:monospace;'
             'font-size:0.8rem;color:#8a6a2a;">⚠ Answer choices not available in dataset</div>'
         )
-    for label, text in choices:
-        choices_html += (
-            '<div style="'
-            'display:block;'
-            'width:100%;'
-            'padding:9px 14px;'
-            'margin-bottom:6px;'
-            'background:#faf8f4;'
-            'border:1px solid #e8e2d8;'
-            'border-radius:8px;'
-            'font-size:0.95rem;'
-            'color:#333;'
-            'line-height:1.5;'
-            '">'
-            f'<span style="font-weight:700;color:#8a6a2a;margin-right:8px;">{label}.</span>'
-            f'{text}'
-            '</div>'
-        )
 
     answer_safe = answer.replace("<", "&lt;").replace(">", "&gt;")
-
-    # Spoiler button — inline onclick, no CSS class toggling needed
     spoiler = (
         '<div id="sp" onclick="'
         'var a=document.getElementById(\'ans\');'
@@ -128,12 +137,13 @@ def render_question(ex, orig_i):
         'if(a.style.filter===\'blur(0px)\'){'
         'a.style.filter=\'blur(5px)\';l.innerText=\'👁 Reveal Answer\';}'
         'else{a.style.filter=\'blur(0px)\';l.innerText=\'✓ Answer\';}"'
-        ' style="'
-        'display:inline-flex;align-items:center;gap:10px;cursor:pointer;'
+        ' style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;'
         'padding:7px 16px;background:#f7f5f0;border:1px solid #e0dbd0;'
         'border-radius:8px;margin-top:4px;">'
-        '<span id="lbl" style="font-family:monospace;font-size:0.72rem;color:#8a6a2a;letter-spacing:1px;">👁 Reveal Answer</span>'
-        f'<span id="ans" style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;filter:blur(5px);transition:filter 0.3s;">{answer_safe}</span>'
+        '<span id="lbl" style="font-family:monospace;font-size:0.72rem;'
+        'color:#8a6a2a;letter-spacing:1px;">👁 Reveal Answer</span>'
+        '<span id="ans" style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;'
+        'filter:blur(5px);transition:filter 0.3s;">' + answer_safe + '</span>'
         '</div>'
     )
 
@@ -145,22 +155,20 @@ def render_question(ex, orig_i):
         '<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#f7f5f0;font-family:\'DM Sans\',sans-serif;padding:4px;}</style>'
         '</head><body>'
         '<div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;">'
-        # Meta row
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;">'
-        f'<span style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;">Question #{orig_i + 1}</span>'
-        f'<span style="font-family:monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">{subject}</span>'
-        f'<span style="font-family:monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;">{atype}</span>'
+        '<span style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;">Question #' + str(orig_i + 1) + '</span>'
+        '<span style="font-family:monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">' + subject + '</span>'
+        '<span style="font-family:monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;">' + atype + '</span>'
         '</div>'
         + img_html
-        + f'<div style="font-size:1rem;line-height:1.75;color:#2a2a2a;margin-bottom:1rem;">{body}</div>'
+        + '<div style="font-size:1rem;line-height:1.75;color:#2a2a2a;margin-bottom:1rem;">' + body + '</div>'
         + choices_html
         + spoiler
         + '</div></body></html>'
     )
 
     body_chars = len(re.sub(r'<[^>]+>', '', body))
-    n_choices = len(choices) if choices else (1 if atype == 'multipleChoice' else 0)
-    height = 160 + min(body_chars // 5, 800) + n_choices * 52
+    height = 160 + min(body_chars // 5, 800) + len(choices) * 52 + (40 if not choices and atype == "multipleChoice" else 0)
     components.html(html, height=height, scrolling=True)
 
 
