@@ -18,57 +18,6 @@ def get_indices(_dataset):
     return all_idx, mc, em
 
 
-def format_q_text(q_text):
-    return re.sub(
-        r'```(.*?)```',
-        r'<pre style="background:#f4f0e8;border:1px solid #e0dbd0;border-radius:6px;padding:0.75rem;font-size:0.82rem;overflow-x:auto;white-space:pre-wrap;font-family:monospace;">\1</pre>',
-        q_text, flags=re.DOTALL
-    )
-
-
-def split_question_and_choices(ex):
-    """Split question text into (question_body, choices_html) at 'Answer Choices:'."""
-    q = ex.get("question", "")
-    match = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
-    if not match:
-        return format_q_text(q), ""
-
-    body = format_q_text(q[:match.start()].strip())
-    choices_raw = q[match.end():].strip()
-
-    # Find choice labels: only match letters that appear to be sequential choice markers.
-    # Strategy: find all candidate positions, then filter to only keep ones that
-    # follow the expected sequence (A, B, C... or whatever starts first).
-    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. ', choices_raw)]
-
-    # Filter to sequential runs: A->B->C or whatever the sequence is
-    def is_sequential(a, b):
-        return ord(b) == ord(a) + 1
-
-    if not candidates:
-        choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
-        return body, choices_html
-
-    # Keep only the sequential chain starting from the first candidate
-    positions = [candidates[0]]
-    for cand in candidates[1:]:
-        if is_sequential(positions[-1][1], cand[1]):
-            positions.append(cand)
-
-    if len(positions) < 2:
-        choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
-        return body, choices_html
-
-    choices_html = '<div style="margin-top:1rem;display:flex;flex-direction:column;gap:6px;">'
-    for i, (pos, label) in enumerate(positions):
-        start = pos + 3  # skip "X. "
-        end = positions[i + 1][0] if i + 1 < len(positions) else len(choices_raw)
-        text = choices_raw[start:end].strip()
-        choices_html += f'<div style="padding:8px 14px;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;"><strong>{label}.</strong> {text}</div>'
-    choices_html += '</div>'
-    return body, choices_html
-
-
 def get_image_html(ex):
     img_data = ex.get("image")
     if img_data:
@@ -78,134 +27,119 @@ def get_image_html(ex):
     return ""
 
 
-def render_page(indices, show_set):
-    """Render a page of questions as a single iframe with MathJax and click-to-reveal answers."""
-    cards = ""
-    for orig_i in indices:
-        ex = dataset[orig_i]
-        subject = ex.get("subject") or "Unknown"
-        q_body, choices_html = split_question_and_choices(ex)
-        answer = ex.get("answer", "").replace("'", "&#39;").replace('"', "&quot;")
-        answer_type = ex.get("answer_type") or "unknown"
-        image_html = get_image_html(ex)
+def parse_choices_and_body(ex):
+    """Split question into body text and list of choice strings."""
+    q = ex.get("question", "")
+    match = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
 
-        cards += f"""
-        <div class="q-card">
-            <div class="q-meta">
-                <span class="q-number">Question #{orig_i + 1}</span>
-                <span class="q-subject">{subject}</span>
-                <span class="q-type">{answer_type}</span>
-            </div>
-            {image_html}
-            <div class="q-text">{q_body}</div>
-            {choices_html}
-            <div class="spoiler" onclick="this.classList.toggle('revealed')">
-                <span class="spoiler-label">👁 Reveal Answer</span>
-                <span class="spoiler-answer">{answer}</span>
-            </div>
-        </div>"""
+    if match:
+        body = q[:match.start()].strip()
+        choices_raw = q[match.end():].strip()
+    else:
+        body = q.strip()
+        choices_raw = ""
 
-    html = f"""<!DOCTYPE html>
-<html><head>
-<script>window.MathJax={{tex:{{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']]}}}};</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    # Format code blocks in body
+    body = re.sub(
+        r'```(.*?)```',
+        r'<pre style="background:#f4f0e8;border:1px solid #e0dbd0;border-radius:6px;padding:0.75rem;font-size:0.82rem;overflow-x:auto;white-space:pre-wrap;font-family:monospace;">\1</pre>',
+        body, flags=re.DOTALL
+    )
+
+    if not choices_raw:
+        return body, []
+
+    # Find sequential letter labels A. B. C. D. E. F. ...
+    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. ', choices_raw)]
+
+    def is_seq(a, b):
+        return ord(b) == ord(a) + 1
+
+    if not candidates:
+        return body, [choices_raw]
+
+    positions = [candidates[0]]
+    for cand in candidates[1:]:
+        if is_seq(positions[-1][1], cand[1]):
+            positions.append(cand)
+
+    choices = []
+    for i, (pos, label) in enumerate(positions):
+        start = pos + 3
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(choices_raw)
+        text = choices_raw[start:end].strip()
+        choices.append(f"{label}. {text}")
+
+    return body, choices
+
+
+CARD_STYLE = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
-body {{ background:#f7f5f0; margin:0; padding:6px; font-family:'DM Sans',sans-serif; }}
-
-.q-card {{
-    background:#fff;
-    border:1px solid #e0dbd0;
-    border-radius:12px;
-    padding:1.5rem;
-    margin-bottom:1.25rem;
-}}
-
-.q-meta {{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-bottom:0.75rem;
-    flex-wrap:wrap;
-}}
-.q-number {{
-    font-family:'DM Mono',monospace;
-    font-size:0.65rem;
-    color:#8a6a2a;
-    letter-spacing:2px;
-    text-transform:uppercase;
-}}
-.q-subject {{
-    font-family:'DM Mono',monospace;
-    font-size:0.65rem;
-    color:#999;
-    background:#f0ece4;
-    padding:2px 10px;
-    border-radius:20px;
-}}
-.q-type {{
-    font-family:'DM Mono',monospace;
-    font-size:0.65rem;
-    color:#4a8a4a;
-    background:#f0f7f0;
-    border:1px solid #c0dcc0;
-    padding:2px 8px;
-    border-radius:4px;
-}}
-
-.q-text {{
-    font-size:1rem;
-    line-height:1.75;
-    color:#2a2a2a;
-    margin-bottom:1.25rem;
-}}
-
-.spoiler {{
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-    cursor:pointer;
-    padding:8px 16px;
-    background:#f7f5f0;
-    border:1px solid #e0dbd0;
-    border-radius:8px;
-    user-select:none;
-    transition:background 0.2s;
-}}
-.spoiler:hover {{ background:#eeeae2; }}
-
-.spoiler-label {{
-    font-family:'DM Mono',monospace;
-    font-size:0.75rem;
-    color:#8a6a2a;
-    letter-spacing:1px;
-    white-space:nowrap;
-}}
-
-.spoiler-answer {{
-    font-family:'DM Mono',monospace;
-    font-size:0.9rem;
-    color:#2a6a2a;
-    filter:blur(6px);
-    transition:filter 0.3s;
-    max-width:600px;
-}}
-
-.spoiler.revealed .spoiler-answer {{ filter:blur(0); }}
-.spoiler.revealed .spoiler-label {{ color:#4a8a4a; }}
+* { box-sizing: border-box; }
+body { background:#f7f5f0; margin:0; padding:4px 2px; font-family:'DM Sans',sans-serif; }
+.q-card { background:#fff; border:1px solid #e0dbd0; border-radius:12px; padding:1.25rem 1.5rem; }
+.q-meta { display:flex; align-items:center; gap:8px; margin-bottom:0.75rem; flex-wrap:wrap; }
+.q-number { font-family:'DM Mono',monospace; font-size:0.65rem; color:#8a6a2a; letter-spacing:2px; text-transform:uppercase; }
+.q-subject { font-family:'DM Mono',monospace; font-size:0.65rem; color:#999; background:#f0ece4; padding:2px 10px; border-radius:20px; }
+.q-type { font-family:'DM Mono',monospace; font-size:0.65rem; color:#4a8a4a; background:#f0f7f0; border:1px solid #c0dcc0; padding:2px 8px; border-radius:4px; }
+.q-body { font-size:1rem; line-height:1.75; color:#2a2a2a; margin-bottom:1rem; }
+.choices { display:flex; flex-direction:column; gap:6px; margin-bottom:1rem; }
+.choice { padding:8px 14px; background:#faf8f4; border:1px solid #e8e2d8; border-radius:8px; font-size:0.95rem; color:#333; line-height:1.5; }
+.choice strong { color:#8a6a2a; margin-right:4px; }
+.spoiler { display:inline-flex; align-items:center; gap:10px; cursor:pointer; padding:7px 14px; background:#f7f5f0; border:1px solid #e0dbd0; border-radius:8px; user-select:none; }
+.spoiler:hover { background:#eeeae2; }
+.spoiler-label { font-family:'DM Mono',monospace; font-size:0.72rem; color:#8a6a2a; letter-spacing:1px; white-space:nowrap; }
+.spoiler-answer { font-family:'DM Mono',monospace; font-size:0.9rem; color:#2a6a2a; filter:blur(5px); transition:filter 0.3s; }
+.spoiler.revealed .spoiler-answer { filter:blur(0); }
+.spoiler.revealed .spoiler-label { color:#4a8a4a; }
 </style>
-</head>
-<body>{cards}</body></html>"""
+"""
 
-    # Dynamically estimate height based on content
-    total_height = 0
-    for orig_i in indices:
-        ex = dataset[orig_i]
-        q_len = len(ex.get("question", ""))
-        q_body, ch = split_question_and_choices(ex)
-        n_choices = ch.count('<div style="padding:8px')
-        total_height += 120 + (q_len // 6) + (n_choices * 52)
-    components.html(html, height=max(total_height, 400), scrolling=True)
+MATHJAX = """
+<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$'],['\\[','\\]']]}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+"""
+
+def render_question(ex, orig_i):
+    subject = ex.get("subject") or "Unknown"
+    answer_type = ex.get("answer_type") or "unknown"
+    answer = ex.get("answer", "").replace("<", "&lt;").replace(">", "&gt;")
+    image_html = get_image_html(ex)
+    body, choices = parse_choices_and_body(ex)
+
+    choices_html = ""
+    if choices:
+        choices_html = '<div class="choices">'
+        for c in choices:
+            # Bold just the letter label
+            c_html = re.sub(r'^([A-Z])\. ', r'<strong>\1.</strong> ', c)
+            choices_html += f'<div class="choice">{c_html}</div>'
+        choices_html += '</div>'
+
+    html = f"""<!DOCTYPE html><html><head>
+    {MATHJAX}
+    {CARD_STYLE}
+    </head><body>
+    <div class="q-card">
+        <div class="q-meta">
+            <span class="q-number">Question #{orig_i + 1}</span>
+            <span class="q-subject">{subject}</span>
+            <span class="q-type">{answer_type}</span>
+        </div>
+        {image_html}
+        <div class="q-body">{body}</div>
+        {choices_html}
+        <div class="spoiler" onclick="this.classList.toggle('revealed')">
+            <span class="spoiler-label">👁 Reveal Answer</span>
+            <span class="spoiler-answer">{answer}</span>
+        </div>
+    </div>
+    </body></html>"""
+
+    # Height: base + body length + per choice
+    height = 160 + min(len(body) // 5, 400) + len(choices) * 56
+    components.html(html, height=height, scrolling=False)
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -219,26 +153,21 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
 html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; background-color: #f7f5f0; color: #1a1a1a; }
-h1, h2, h3 { font-family: 'Playfair Display', serif; }
 .stApp { background-color: #f7f5f0; }
-.hle-header { text-align: center; padding: 2.5rem 0 1.5rem; border-bottom: 2px solid #e0dbd0; margin-bottom: 2rem; }
-.hle-header h1 { font-size: 3rem; font-weight: 900; letter-spacing: -1px; color: #1a1a1a; margin: 0; }
-.hle-header .subtitle { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: #999; letter-spacing: 3px; text-transform: uppercase; margin-top: 0.5rem; }
 section[data-testid="stSidebar"] { background: #eeeae2 !important; border-right: 1px solid #e0dbd0; }
 .stButton > button { background: #fff !important; color: #8a6a2a !important; border: 1px solid #c8a96e !important; border-radius: 8px !important; font-family: 'DM Mono', monospace !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }
 .stButton > button:hover { background: #c8a96e !important; color: #fff !important; }
-.stSelectbox label, .stRadio > label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #666 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
+.stSelectbox label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #666 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
 div[data-testid="stMetric"] { background: #fff; border: 1px solid #e0dbd0; border-radius: 10px; padding: 1rem; }
 div[data-testid="stMetric"] label { color: #999 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
 div[data-testid="stMetric"] div { color: #8a6a2a !important; font-family: 'Playfair Display', serif !important; }
-hr { border-color: #e0dbd0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="hle-header">
-    <h1>Humanity's Last Exam</h1>
-    <div class="subtitle">2,500 questions · expert-vetted · frontier benchmark</div>
+<div style="text-align:center;padding:2.5rem 0 1.5rem;border-bottom:2px solid #e0dbd0;margin-bottom:2rem;">
+    <h1 style="font-family:'Playfair Display',serif;font-size:3rem;font-weight:900;letter-spacing:-1px;color:#1a1a1a;margin:0;">Humanity's Last Exam</h1>
+    <div style="font-family:'DM Mono',monospace;font-size:0.75rem;color:#999;letter-spacing:3px;text-transform:uppercase;margin-top:0.5rem;">2,500 questions · expert-vetted · frontier benchmark</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -246,11 +175,10 @@ with st.sidebar:
     st.markdown("### 🔍 Filter")
     type_filter = st.selectbox("Question Type", ["All", "multipleChoice", "exactMatch"])
     st.markdown("---")
-    if st.button("🎲 New Random Sample", use_container_width=True):
-        st.session_state.sample = None
+    if st.button("🎲 New Sample", use_container_width=True):
+        st.session_state.pop("sample", None)
         st.rerun()
 
-# Filter
 if type_filter == "All":
     filtered = all_indices
 elif type_filter == "multipleChoice":
@@ -266,19 +194,16 @@ with col2:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Pick a random sample of 10 and store it so it doesn't reshuffle on every interaction
-if "sample" not in st.session_state or st.session_state.sample is None:
+# Resample if filter changed or no sample yet
+if "sample" not in st.session_state or st.session_state.get("sample_type") != type_filter:
     st.session_state.sample = random.sample(filtered, min(10, len(filtered)))
     st.session_state.sample_type = type_filter
 
-# If filter changed, resample
-if st.session_state.get("sample_type") != type_filter:
-    st.session_state.sample = random.sample(filtered, min(10, len(filtered)))
-    st.session_state.sample_type = type_filter
-
-render_page(st.session_state.sample, set())
+for orig_i in st.session_state.sample:
+    render_question(dataset[orig_i], orig_i)
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
 st.markdown("---")
-if st.button("🎲 New Random Sample", use_container_width=True):
-    st.session_state.sample = None
+if st.button("🎲 New Sample", use_container_width=True):
+    st.session_state.pop("sample", None)
     st.rerun()
