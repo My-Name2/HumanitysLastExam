@@ -19,137 +19,121 @@ def get_indices(_dataset):
 
 
 def split_choices(raw):
-    """Split 'A. foo B. bar C. baz' into [('A','foo'),('B','bar'),('C','baz')]."""
     first = re.match(r'^([A-Z])\. ', raw)
     if not first:
         return []
     results = []
-    current_label = first.group(1)
-    current_start = 3  # skip "A. "
+    label = first.group(1)
+    pos = 3
     while True:
-        next_label = chr(ord(current_label) + 1)
-        m = re.search(' ' + next_label + r'\. ', raw[current_start:])
+        nxt = chr(ord(label) + 1)
+        m = re.search(' ' + nxt + r'\. ', raw[pos:])
         if m:
-            results.append((current_label, raw[current_start:current_start + m.start()].strip()))
-            current_label = next_label
-            current_start = current_start + m.start() + len(next_label) + 3
+            results.append((label, raw[pos:pos + m.start()].strip()))
+            label = nxt
+            pos = pos + m.start() + len(nxt) + 3
         else:
-            results.append((current_label, raw[current_start:].strip()))
+            results.append((label, raw[pos:].strip()))
             break
     return results
 
 
 def parse_question(ex):
-    """Returns (body_html, choices, answer, answer_type, subject, image_html)."""
     q = ex.get("question", "")
     m = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
     body = q[:m.start()].strip() if m else q.strip()
     choices_raw = q[m.end():].strip() if m else ""
-
-    # Format triple-backtick code blocks
     body = re.sub(
         r'```(.*?)```',
-        lambda x: '<pre style="background:#f4f0e8;border:1px solid #e0dbd0;border-radius:6px;'
-                  'padding:0.75rem;font-size:0.82rem;overflow-x:auto;white-space:pre-wrap;'
-                  'font-family:monospace;margin:0.5rem 0;">' + x.group(1) + '</pre>',
+        lambda x: (
+            '<pre style="background:#f4f0e8;border:1px solid #e0dbd0;border-radius:6px;'
+            'padding:0.75rem;font-size:0.82rem;overflow-x:auto;white-space:pre-wrap;'
+            'font-family:monospace;margin:0.5rem 0;">' + x.group(1) + '</pre>'
+        ),
         body, flags=re.DOTALL
     )
-
     choices = split_choices(choices_raw) if choices_raw else []
-
     img = ex.get("image", "")
     if img and not img.startswith("data:"):
         img = "data:image/jpeg;base64," + img
-    image_html = f'<img src="{img}" style="max-width:100%;border-radius:8px;border:1px solid #e0dbd0;margin-bottom:1rem;display:block;">' if img else ""
-
-    return (
-        body,
-        choices,
-        ex.get("answer", ""),
-        ex.get("answer_type") or "unknown",
-        ex.get("subject") or "Unknown",
-        image_html,
-    )
+    return body, choices, ex.get("answer", ""), ex.get("answer_type") or "unknown", ex.get("subject") or "Unknown", img
 
 
 def render_question(ex, orig_i):
-    body, choices, answer, answer_type, subject, image_html = parse_question(ex)
+    body, choices, answer, atype, subject, img = parse_question(ex)
 
-    # Build each choice as its own table row — tables always stack vertically
-    rows = ""
-    for label, text in choices:
-        rows += (
-            '<tr>'
-            '<td style="padding:8px 10px;vertical-align:top;white-space:nowrap;">'
-            f'<b style="font-family:monospace;color:#8a6a2a;">{label}.</b>'
-            '</td>'
-            f'<td style="padding:8px 14px 8px 4px;line-height:1.5;color:#333;width:100%;">{text}</td>'
-            '</tr>'
-        )
+    # Image
+    img_html = ""
+    if img:
+        img_html = f'<img src="{img}" style="max-width:100%;border-radius:8px;border:1px solid #e0dbd0;margin-bottom:1rem;display:block;">'
 
+    # Choices — each one a separate block div, purely inline styles
     choices_html = ""
-    if rows:
-        choices_html = (
-            '<table style="width:100%;border-collapse:separate;border-spacing:0 5px;margin-bottom:1rem;">'
-            + rows
-            + '</table>'
+    for label, text in choices:
+        choices_html += (
+            '<div style="'
+            'display:block;'
+            'width:100%;'
+            'padding:9px 14px;'
+            'margin-bottom:6px;'
+            'background:#faf8f4;'
+            'border:1px solid #e8e2d8;'
+            'border-radius:8px;'
+            'font-size:0.95rem;'
+            'color:#333;'
+            'line-height:1.5;'
+            '">'
+            f'<span style="font-weight:700;color:#8a6a2a;margin-right:8px;">{label}.</span>'
+            f'{text}'
+            '</div>'
         )
 
     answer_safe = answer.replace("<", "&lt;").replace(">", "&gt;")
 
-    html = f"""<!DOCTYPE html>
-<html>
-<head>
-<script>
-window.MathJax = {{tex: {{inlineMath: [['$','$'],['\\\\(','\\\\)']], displayMath: [['$$','$$'],['\\\\[','\\\\]']]}}}};
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: #f7f5f0; font-family: 'DM Sans', sans-serif; padding: 4px; }}
-  .card {{ background: #fff; border: 1px solid #e0dbd0; border-radius: 12px; padding: 1.25rem 1.5rem; }}
-  .meta {{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }}
-  .qnum {{ font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #8a6a2a; letter-spacing: 2px; text-transform: uppercase; }}
-  .tag {{ font-family: 'DM Mono', monospace; font-size: 0.65rem; padding: 2px 10px; border-radius: 20px; }}
-  .tag-subj {{ background: #f0ece4; color: #999; }}
-  .tag-type {{ background: #f0f7f0; color: #4a8a4a; border: 1px solid #c0dcc0; border-radius: 4px; padding: 2px 8px; }}
-  .body {{ font-size: 1rem; line-height: 1.75; color: #2a2a2a; margin-bottom: 1rem; }}
-  .choice-row td {{ background: #faf8f4; border: 1px solid #e8e2d8; }}
-  .choice-row td:first-child {{ border-radius: 8px 0 0 8px; border-right: none; }}
-  .choice-row td:last-child {{ border-radius: 0 8px 8px 0; }}
-  .spoiler {{ display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 7px 14px; background: #f7f5f0; border: 1px solid #e0dbd0; border-radius: 8px; user-select: none; margin-top: 0.25rem; }}
-  .spoiler:hover {{ background: #eeeae2; }}
-  .lbl {{ font-family: 'DM Mono', monospace; font-size: 0.72rem; color: #8a6a2a; letter-spacing: 1px; }}
-  .ans {{ font-family: 'DM Mono', monospace; font-size: 0.9rem; color: #2a6a2a; filter: blur(5px); transition: filter 0.3s; }}
-  .spoiler.open .ans {{ filter: blur(0); }}
-  .spoiler.open .lbl {{ color: #4a8a4a; }}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="meta">
-    <span class="qnum">Question #{orig_i + 1}</span>
-    <span class="tag tag-subj">{subject}</span>
-    <span class="tag tag-type">{answer_type}</span>
-  </div>
-  {image_html}
-  <div class="body">{body}</div>
-  {choices_html}
-  <div class="spoiler" onclick="this.classList.toggle('open')">
-    <span class="lbl">👁 Reveal Answer</span>
-    <span class="ans">{answer_safe}</span>
-  </div>
-</div>
-</body>
-</html>"""
+    # Spoiler button — inline onclick, no CSS class toggling needed
+    spoiler = (
+        '<div id="sp" onclick="'
+        'var a=document.getElementById(\'ans\');'
+        'var l=document.getElementById(\'lbl\');'
+        'if(a.style.filter===\'blur(0px)\'){'
+        'a.style.filter=\'blur(5px)\';l.innerText=\'👁 Reveal Answer\';}'
+        'else{a.style.filter=\'blur(0px)\';l.innerText=\'✓ Answer\';}"'
+        ' style="'
+        'display:inline-flex;align-items:center;gap:10px;cursor:pointer;'
+        'padding:7px 16px;background:#f7f5f0;border:1px solid #e0dbd0;'
+        'border-radius:8px;margin-top:4px;">'
+        '<span id="lbl" style="font-family:monospace;font-size:0.72rem;color:#8a6a2a;letter-spacing:1px;">👁 Reveal Answer</span>'
+        f'<span id="ans" style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;filter:blur(5px);transition:filter 0.3s;">{answer_safe}</span>'
+        '</div>'
+    )
+
+    html = (
+        '<!DOCTYPE html><html><head>'
+        '<script>window.MathJax={tex:{inlineMath:[["$","$"],["\\\\(","\\\\)"]],displayMath:[["$$","$$"],["\\\\[","\\\\]"]]}};</script>'
+        '<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>'
+        '<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">'
+        '<style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#f7f5f0;font-family:\'DM Sans\',sans-serif;padding:4px;}</style>'
+        '</head><body>'
+        '<div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.25rem 1.5rem;">'
+        # Meta row
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;">'
+        f'<span style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;">Question #{orig_i + 1}</span>'
+        f'<span style="font-family:monospace;font-size:0.65rem;color:#999;background:#f0ece4;padding:2px 10px;border-radius:20px;">{subject}</span>'
+        f'<span style="font-family:monospace;font-size:0.65rem;color:#4a8a4a;background:#f0f7f0;border:1px solid #c0dcc0;padding:2px 8px;border-radius:4px;">{atype}</span>'
+        '</div>'
+        + img_html
+        + f'<div style="font-size:1rem;line-height:1.75;color:#2a2a2a;margin-bottom:1rem;">{body}</div>'
+        + choices_html
+        + spoiler
+        + '</div></body></html>'
+    )
 
     body_chars = len(re.sub(r'<[^>]+>', '', body))
-    height = 200 + min(body_chars // 4, 1000) + len(choices) * 46
+    height = 200 + min(body_chars // 4, 1000) + len(choices) * 52
     components.html(html, height=height, scrolling=False)
 
 
-# ── Setup ─────────────────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 token = st.secrets["HF_TOKEN"]
 dataset = load_hle(token)
 all_indices, mc_indices, em_indices = get_indices(dataset)
