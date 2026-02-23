@@ -26,6 +26,33 @@ def format_q_text(q_text):
     )
 
 
+def split_question_and_choices(ex):
+    """Split question text into (question_body, choices_html) at 'Answer Choices:'."""
+    q = ex.get("question", "")
+    match = re.search(r'\s*Answer Choices:\s*', q, re.IGNORECASE)
+    if not match:
+        return format_q_text(q), ""
+
+    body = format_q_text(q[:match.start()].strip())
+    choices_raw = q[match.end():].strip()
+
+    # Split on A. B. C. D. E. using position-based approach
+    positions = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<=\s))([A-E])\. ', choices_raw)]
+    if not positions:
+        # Can't parse, just show as text
+        choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
+        return body, choices_html
+
+    choices_html = '<div style="margin-top:1rem;display:flex;flex-direction:column;gap:6px;">'
+    for i, (pos, label) in enumerate(positions):
+        start = pos + 3  # skip "X. "
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(choices_raw)
+        text = choices_raw[start:end].strip()
+        choices_html += f'<div style="padding:8px 14px;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;"><strong>{label}.</strong> {text}</div>'
+    choices_html += '</div>'
+    return body, choices_html
+
+
 def get_image_html(ex):
     img_data = ex.get("image")
     if img_data:
@@ -41,7 +68,7 @@ def render_page(indices, show_set):
     for orig_i in indices:
         ex = dataset[orig_i]
         subject = ex.get("subject") or "Unknown"
-        q_text = format_q_text(ex.get("question", ""))
+        q_body, choices_html = split_question_and_choices(ex)
         answer = ex.get("answer", "").replace("'", "&#39;").replace('"', "&quot;")
         answer_type = ex.get("answer_type") or "unknown"
         image_html = get_image_html(ex)
@@ -54,7 +81,8 @@ def render_page(indices, show_set):
                 <span class="q-type">{answer_type}</span>
             </div>
             {image_html}
-            <div class="q-text">{q_text}</div>
+            <div class="q-text">{q_body}</div>
+            {choices_html}
             <div class="spoiler" onclick="this.classList.toggle('revealed')">
                 <span class="spoiler-label">👁 Reveal Answer</span>
                 <span class="spoiler-answer">{answer}</span>
