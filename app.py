@@ -39,7 +39,7 @@ def split_question_and_choices(ex):
     # Find choice labels: only match letters that appear to be sequential choice markers.
     # Strategy: find all candidate positions, then filter to only keep ones that
     # follow the expected sequence (A, B, C... or whatever starts first).
-    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. (?=[A-Z]|[a-z]|[0-9])', choices_raw)]
+    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. ', choices_raw)]
 
     # Filter to sequential runs: A->B->C or whatever the sequence is
     def is_sequential(a, b):
@@ -238,8 +238,8 @@ with st.sidebar:
     st.markdown("### 🔍 Filter")
     type_filter = st.selectbox("Question Type", ["All", "multipleChoice", "exactMatch"])
     st.markdown("---")
-    if st.button("🎲 Random Page"):
-        st.session_state.page = random.randint(0, 249)
+    if st.button("🎲 New Random Sample", use_container_width=True):
+        st.session_state.sample = None
         st.rerun()
 
 # Filter
@@ -250,41 +250,27 @@ elif type_filter == "multipleChoice":
 else:
     filtered = em_indices
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 with col1:
-    st.metric("Total", f"{len(dataset):,}")
+    st.metric("Total Questions", f"{len(dataset):,}")
 with col2:
-    st.metric("Showing", f"{len(filtered):,}")
-with col3:
     st.metric("Multiple Choice", f"{len(mc_indices):,}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-PER_PAGE = 10
-if "page" not in st.session_state:
-    st.session_state.page = 0
+# Pick a random sample of 10 and store it so it doesn't reshuffle on every interaction
+if "sample" not in st.session_state or st.session_state.sample is None:
+    st.session_state.sample = random.sample(filtered, min(10, len(filtered)))
+    st.session_state.sample_type = type_filter
 
-total_pages = max(1, (len(filtered) - 1) // PER_PAGE + 1)
-st.session_state.page = min(st.session_state.page, total_pages - 1)
-page_start = st.session_state.page * PER_PAGE
-page_indices = filtered[page_start: page_start + PER_PAGE]
+# If filter changed, resample
+if st.session_state.get("sample_type") != type_filter:
+    st.session_state.sample = random.sample(filtered, min(10, len(filtered)))
+    st.session_state.sample_type = type_filter
 
-render_page(page_indices, set())
+render_page(st.session_state.sample, set())
 
 st.markdown("---")
-col_prev, col_info, col_next = st.columns([1, 2, 1])
-with col_prev:
-    if st.button("← Previous", disabled=st.session_state.page == 0):
-        st.session_state.page -= 1
-        st.rerun()
-with col_info:
-    st.markdown(
-        f"<div style='text-align:center;font-family:DM Mono,monospace;font-size:0.8rem;color:#999;padding-top:0.5rem'>"
-        f"Page {st.session_state.page + 1} of {total_pages} &nbsp;·&nbsp; "
-        f"Q {page_start + 1}–{min(page_start + PER_PAGE, len(filtered))} of {len(filtered)}</div>",
-        unsafe_allow_html=True
-    )
-with col_next:
-    if st.button("Next →", disabled=st.session_state.page >= total_pages - 1):
-        st.session_state.page += 1
-        st.rerun()
+if st.button("🎲 New Random Sample", use_container_width=True):
+    st.session_state.sample = None
+    st.rerun()
