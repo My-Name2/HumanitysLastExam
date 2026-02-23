@@ -197,7 +197,15 @@ body {{ background:#f7f5f0; margin:0; padding:6px; font-family:'DM Sans',sans-se
 </head>
 <body>{cards}</body></html>"""
 
-    components.html(html, height=len(indices) * 340, scrolling=True)
+    # Dynamically estimate height based on content
+    total_height = 0
+    for orig_i in indices:
+        ex = dataset[orig_i]
+        q_len = len(ex.get("question", ""))
+        q_body, ch = split_question_and_choices(ex)
+        n_choices = ch.count('<div style="padding:8px')
+        total_height += 120 + (q_len // 6) + (n_choices * 52)
+    components.html(html, height=max(total_height, 400), scrolling=True)
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
