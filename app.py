@@ -52,7 +52,7 @@ def parse_choices_and_body(ex):
     candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. ', choices_raw)]
 
     if not candidates:
-        return body, [choices_raw]
+        return body, [('', choices_raw)]
 
     def is_seq(a, b):
         return ord(b) == ord(a) + 1
@@ -63,7 +63,7 @@ def parse_choices_and_body(ex):
             positions.append(cand)
 
     if len(positions) < 2:
-        return body, [choices_raw]
+        return body, [('', choices_raw)]
 
     choices = []
     for i, (pos, label) in enumerate(positions):
@@ -87,10 +87,11 @@ def render_question(ex, orig_i):
     if choices:
         choices_html = '<div style="display:flex;flex-direction:column;gap:6px;margin:0 0 1rem 0;">'
         for label, text in choices:
+            label_html = f'<b style="color:#8a6a2a;margin-right:6px;">{label}.</b>' if label else ''
             choices_html += (
                 f'<div style="padding:8px 14px;background:#faf8f4;border:1px solid #e8e2d8;'
                 f'border-radius:8px;font-size:0.95rem;color:#333;line-height:1.5;">'
-                f'<b style="color:#8a6a2a;margin-right:6px;">{label}.</b>{text}</div>'
+                f'{label_html}{text}</div>'
             )
         choices_html += '</div>'
 
