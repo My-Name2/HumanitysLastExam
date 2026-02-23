@@ -82,12 +82,11 @@ def render_question(ex, orig_i):
     # Build choices HTML with fully inline styles — no CSS classes
     choices_html = ""
     if choices:
-        choices_html = '<div style="display:flex;flex-direction:column;gap:6px;margin:0 0 1rem 0;">'
+        choices_html = '<div style="margin:0 0 1rem 0;">'
         for label, text in choices:
             label_html = f'<b style="color:#8a6a2a;margin-right:6px;">{label}.</b>' if label else ''
             choices_html += (
-                f'<div style="padding:8px 14px;background:#faf8f4;border:1px solid #e8e2d8;'
-                f'border-radius:8px;font-size:0.95rem;color:#333;line-height:1.5;">'
+                f'<div style="display:block;padding:8px 14px;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;line-height:1.5;margin-bottom:6px;">'
                 f'{label_html}{text}</div>'
             )
         choices_html += '</div>'
