@@ -18,19 +18,27 @@ def get_question_indices(_dataset):
 
 
 def parse_choices(ex):
+    # Use the dedicated answer_choices field if present and non-empty
     choices = ex.get("answer_choices") or []
     if choices:
         return choices
+
+    # Fall back to extracting from question text
     q = ex.get("question", "")
     match = re.search(r'Answer Choices:\s*(.*?)$', q, re.IGNORECASE | re.DOTALL)
     if not match:
         return []
     raw = match.group(1).strip()
-    parts = re.split(r'(?<!\w)([A-E])\.\s', raw)
+
+    # Find all positions where a new lettered choice starts: "A. " "B. " etc.
+    positions = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<=\s))([A-E])\. ', raw)]
+    if not positions:
+        return []
     choices = []
-    for i in range(1, len(parts) - 1, 2):
-        label = parts[i]
-        text = parts[i + 1].strip()
+    for i, (pos, label) in enumerate(positions):
+        start = pos + 3  # skip "X. "
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(raw)
+        text = raw[start:end].strip()
         choices.append(f"{label}. {text}")
     return choices
 
