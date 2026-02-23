@@ -49,14 +49,20 @@ def format_q_text(q_text):
     )
 
 
-def has_image(ex):
-    """Check if question references an image."""
-    return bool(ex.get("image")) or bool(re.search(r'\b(figure|image|diagram|attached|shown|below|above|picture|graph|chart|plot)\b', ex.get("question", ""), re.IGNORECASE))
-
-
-IMAGE_NOTICE = '''<div style="margin-bottom:0.75rem;padding:8px 12px;background:#fff8ec;border:1px solid #f0d090;border-radius:8px;font-size:0.85rem;color:#8a6a2a;font-family:monospace;">
+def get_image_html(ex):
+    """Return an image tag if base64 image data exists, a warning if question references image but none present."""
+    img_data = ex.get("image")
+    if img_data:
+        # Already base64 encoded, may include data URI prefix
+        if not img_data.startswith("data:"):
+            img_data = f"data:image/jpeg;base64,{img_data}"
+        return f'''<div style="margin-bottom:1rem;"><img src="{img_data}" style="max-width:100%;border-radius:8px;border:1px solid #e0dbd0;" /></div>'''
+    # No image data but question text references one
+    if re.search(r'\b(figure|diagram|attached|shown below|shown above|picture|the image|the graph|the chart|the plot)\b', ex.get("question", ""), re.IGNORECASE):
+        return '''<div style="margin-bottom:0.75rem;padding:8px 12px;background:#fff8ec;border:1px solid #f0d090;border-radius:8px;font-size:0.85rem;color:#8a6a2a;font-family:monospace;">
     ⚠️ This question references an image that is not available in the public dataset.
 </div>'''
+    return ""
 
 
 def make_q_iframe(ex, label, show_choices=True, show_answer=False):
@@ -81,7 +87,7 @@ def make_q_iframe(ex, label, show_choices=True, show_answer=False):
             <div style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;">{answer}</div>
         </div>'''
 
-    image_notice = IMAGE_NOTICE if has_image(ex) else ""
+    image_notice = get_image_html(ex)
 
     card = f'''
     <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:4px;">
@@ -134,7 +140,7 @@ def render_browse_cards(page_indices, show_answers=False):
                 <div style="font-family:monospace;font-size:0.9rem;color:#2a6a2a;">{answer}</div>
             </div>'''
 
-        image_notice = IMAGE_NOTICE if has_image(ex) else ""
+        image_notice = get_image_html(ex)
         body += f'''
         <div style="background:#fff;border:1px solid #e0dbd0;border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;">
             <div style="font-family:monospace;font-size:0.65rem;color:#8a6a2a;letter-spacing:2px;text-transform:uppercase;margin-bottom:0.5rem;">Question #{orig_i + 1}</div>
