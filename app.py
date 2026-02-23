@@ -36,10 +36,26 @@ def split_question_and_choices(ex):
     body = format_q_text(q[:match.start()].strip())
     choices_raw = q[match.end():].strip()
 
-    # Match any single uppercase letter followed by ". " at word boundary
-    # e.g. A. B. C. ... Z. — handles questions with more than 5 choices
-    positions = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<=\s))([A-Z])\. ', choices_raw)]
-    if not positions:
+    # Find choice labels: only match letters that appear to be sequential choice markers.
+    # Strategy: find all candidate positions, then filter to only keep ones that
+    # follow the expected sequence (A, B, C... or whatever starts first).
+    candidates = [(m.start(), m.group(1)) for m in re.finditer(r'(?:^|(?<= ))([A-Z])\. (?=[A-Z]|[a-z]|[0-9])', choices_raw)]
+
+    # Filter to sequential runs: A->B->C or whatever the sequence is
+    def is_sequential(a, b):
+        return ord(b) == ord(a) + 1
+
+    if not candidates:
+        choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
+        return body, choices_html
+
+    # Keep only the sequential chain starting from the first candidate
+    positions = [candidates[0]]
+    for cand in candidates[1:]:
+        if is_sequential(positions[-1][1], cand[1]):
+            positions.append(cand)
+
+    if len(positions) < 2:
         choices_html = f'<div style="margin-top:0.75rem;padding:0.75rem 1rem;background:#faf8f4;border:1px solid #e8e2d8;border-radius:8px;font-size:0.95rem;color:#333;">{choices_raw}</div>'
         return body, choices_html
 
