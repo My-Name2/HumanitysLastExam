@@ -10,17 +10,26 @@ def load_hle(token):
 
 @st.cache_data(show_spinner=False)
 def get_filters(_dataset):
-    subjects = sorted(set(ex.get("subject") or "Unknown" for ex in _dataset))
     answer_types = sorted(set(ex.get("answer_type") or "Unknown" for ex in _dataset))
     multi = sum(1 for ex in _dataset if ex.get("answer_type") == "multipleChoice")
-    return subjects, answer_types, multi
+    return answer_types, multi
 
 
 token = st.secrets["HF_TOKEN"]
 dataset = load_hle(token)
-subjects, answer_types, multi = get_filters(dataset)
+answer_types, multi = get_filters(dataset)
 
 st.set_page_config(page_title="Humanity's Last Exam", page_icon="🧠", layout="wide")
+
+st.markdown("""
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] },
+  startup: { typeset: false }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
@@ -42,7 +51,7 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
 section[data-testid="stSidebar"] { background: #0d0d18 !important; border-right: 1px solid #2a2a3a; }
 .stButton > button { background: #1e1e2e !important; color: #c8a96e !important; border: 1px solid #c8a96e !important; border-radius: 8px !important; font-family: 'DM Mono', monospace !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }
 .stButton > button:hover { background: #c8a96e !important; color: #0a0a0f !important; }
-.stSelectbox label, .stTextInput label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #888 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
+.stSelectbox label { font-family: 'DM Mono', monospace !important; font-size: 0.75rem !important; color: #888 !important; letter-spacing: 1px !important; text-transform: uppercase !important; }
 div[data-testid="stMetric"] { background: #13131f; border: 1px solid #2a2a3a; border-radius: 10px; padding: 1rem; }
 div[data-testid="stMetric"] label { color: #888 !important; font-family: 'DM Mono', monospace !important; font-size: 0.7rem !important; }
 div[data-testid="stMetric"] div { color: #c8a96e !important; font-family: 'Playfair Display', serif !important; }
@@ -59,7 +68,6 @@ st.markdown("""
 
 with st.sidebar:
     st.markdown("### 🔍 Filters")
-    subject_filter = st.selectbox("Subject", ["All"] + subjects)
     type_filter = st.selectbox("Answer Type", ["All"] + answer_types)
     show_answers = st.toggle("Show Answers", value=False)
     st.markdown("---")
@@ -70,18 +78,15 @@ with st.sidebar:
 
 filtered_indices = [
     i for i, ex in enumerate(dataset)
-    if (subject_filter == "All" or (ex.get("subject") or "Unknown") == subject_filter)
-    and (type_filter == "All" or (ex.get("answer_type") or "Unknown") == type_filter)
+    if (type_filter == "All" or (ex.get("answer_type") or "Unknown") == type_filter)
 ]
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Total Questions", f"{len(dataset):,}")
 with col2:
     st.metric("Filtered", f"{len(filtered_indices):,}")
 with col3:
-    st.metric("Subjects", len(subjects))
-with col4:
     st.metric("Multiple Choice", f"{multi:,}")
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -135,6 +140,7 @@ else:
             {choices_html}
             {answer_section}
         </div>
+        <script>if(window.MathJax){{MathJax.typesetPromise();}}</script>
         """, unsafe_allow_html=True)
 
     st.markdown("---")
